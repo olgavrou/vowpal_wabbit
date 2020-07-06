@@ -34,4 +34,9 @@ add_executable(create-fb-data.out
   create_fb_data.cc
 )
 
+add_executable(read-fb-data.out
+  read_fb_data.cc
+)
+
 add_dependencies(create-fb-data.out fbschemas)
+add_dependencies(read-fb-data.out fbschemas)

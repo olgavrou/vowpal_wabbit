@@ -141,3 +141,4 @@ dist/
 *.model
 python/examples/*.model
 doc/html
+*generated
