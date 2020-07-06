@@ -2,19 +2,18 @@ import flatbuffers
 import os
 import sys
 import argparse
-from itertools import chain
 
 sys.path.append("..")
 sys.path.append("../..")
 
-from generated.VW.parsers.flatbuffer.Label import *
-from generated.VW.parsers.flatbuffer.Namespace import *
-from generated.VW.parsers.flatbuffer.Feature import *
-from generated.VW.parsers.flatbuffer.Example import *
-from generated.VW.parsers.flatbuffer.AnotherExample import *
-from generated.VW.parsers.flatbuffer.FinalExample import *
-from generated.VW.parsers.flatbuffer.ExampleType import *
-from generated.VW.parsers.flatbuffer.SimpleLabel import *
+import generated.VW.parsers.flatbuffer.Example as e
+import  generated.VW.parsers.flatbuffer.AnotherExample as ae
+import generated.VW.parsers.flatbuffer.FinalExample as fe
+import generated.VW.parsers.flatbuffer.ExampleType as et
+import generated.VW.parsers.flatbuffer.Label as lbl
+import generated.VW.parsers.flatbuffer.Namespace as ns
+import generated.VW.parsers.flatbuffer.Feature as ft
+import generated.VW.parsers.flatbuffer.SimpleLabel as sl
 
 
 def create_flatbuffer_vector(original_list, builder, _vector_type_):
@@ -49,52 +48,52 @@ def convert(from_file, to_file):
             line_count = 0
             for line in data_file:
                 line_count += 1
-                label, weight, ns, fts = parse_simple(line)
+                label, weight, name_space, fts = parse_simple(line)
                 # per line
                 # create a label
-                SimpleLabelStart(builder)
-                SimpleLabelAddLabel(builder, label)
-                SimpleLabelAddWeight(builder, weight)
-                fb_label = SimpleLabelEnd(builder)
+                sl.SimpleLabelStart(builder)
+                sl.SimpleLabelAddLabel(builder, label)
+                sl.SimpleLabelAddWeight(builder, weight)
+                fb_label = sl.SimpleLabelEnd(builder)
                 # careful not to create nested builds with builder
                 # create feature vector objects
                 feature_objs = []
                 for name, value in fts:
                     # create name string before starting to create Feature
                     fb_name = builder.CreateString(name)
-                    FeatureStart(builder)
-                    FeatureAddName(builder, fb_name)
-                    FeatureAddValue(builder, value)
-                    feature_objs.append(FeatureEnd(builder))
+                    ft.FeatureStart(builder)
+                    ft.FeatureAddName(builder, fb_name)
+                    ft.FeatureAddValue(builder, value)
+                    feature_objs.append(ft.FeatureEnd(builder))
                 # create vector of features
                 fb_fts_vector = create_flatbuffer_vector(
-                    feature_objs, builder, NamespaceStartFeaturesVector
+                    feature_objs, builder, ns.NamespaceStartFeaturesVector
                 )
 
-                fb_ns = builder.CreateString(ns)
+                fb_ns = builder.CreateString(name_space)
                 # create a namespace and put in the features
-                NamespaceStart(builder)
-                NamespaceAddName(builder, fb_ns)
-                NamespaceAddFeatures(builder, fb_fts_vector)
-                ns_obj = NamespaceEnd(builder)
+                ns.NamespaceStart(builder)
+                ns.NamespaceAddName(builder, fb_ns)
+                ns.NamespaceAddFeatures(builder, fb_fts_vector)
+                ns_obj = ns.NamespaceEnd(builder)
                 # create an example with the ns and label
                 # create all nested objects first
                 empty_tag = builder.CreateString("")
-                ExampleStartNamespacesVector(builder, 1)
+                e.ExampleStartNamespacesVector(builder, 1)
                 builder.PrependUOffsetTRelative(ns_obj)
                 fb_namespaces = builder.EndVector(1)
 
-                ExampleStart(builder)
-                ExampleAddNamespaces(builder, fb_namespaces)
-                ExampleAddLabel(builder, fb_label)
-                ExampleAddLabelType(builder, Label().SimpleLabel)
-                ExampleAddTag(builder, empty_tag)
-                example = ExampleEnd(builder)
+                e.ExampleStart(builder)
+                e.ExampleAddNamespaces(builder, fb_namespaces)
+                e.ExampleAddLabel(builder, fb_label)
+                e.ExampleAddLabelType(builder, lbl.Label().SimpleLabel)
+                e.ExampleAddTag(builder, empty_tag)
+                example = e.ExampleEnd(builder)
 
-                FinalExampleStart(builder)
-                FinalExampleAddExampleType(builder, ExampleType.Example)
-                FinalExampleAddExample(builder, example)
-                final_example = FinalExampleEnd(builder)
+                fe.FinalExampleStart(builder)
+                fe.FinalExampleAddExampleType(builder, et.ExampleType.Example)
+                fe.FinalExampleAddExample(builder, example)
+                final_example = fe.FinalExampleEnd(builder)
 
                 # finish building and store to file
                 builder.FinishSizePrefixed(final_example)
@@ -104,19 +103,18 @@ def convert(from_file, to_file):
             
             # dummy another example
             name = builder.CreateString("example name")
-            AnotherExampleStart(builder)
-            AnotherExampleAddName(builder, slot)
-            AnotherExampleAddValue(builder, 1.)
-            example = AnotherExampleEnd(builder)
+            ae.AnotherExampleStart(builder)
+            ae.AnotherExampleAddName(builder, name)
+            ae.AnotherExampleAddValue(builder, 1.)
+            example = ae.AnotherExampleEnd(builder)
 
-            FinalExampleStart(builder)
-            FinalExampleAddExampleType(builder, ExampleType.AnotherExample)
-            FinalExampleAddExample(builder, example)
-            final_example = FinalExampleEnd(builder)
+            fe.FinalExampleStart(builder)
+            fe.FinalExampleAddExampleType(builder, et.ExampleType.AnotherExample)
+            fe.FinalExampleAddExample(builder, example)
+            final_example = fe.FinalExampleEnd(builder)
             # finish building and store to file
             builder.FinishSizePrefixed(final_example)
             buf = builder.Output()
-            print(f"Writing buf of size {len(buf)}")
             out_f.write(buf)
 
     print(
