@@ -3,24 +3,24 @@
 void deserialize_only_example_collections_and_print(const std::string& from)
 {
   std::ifstream data_file(from, std::ios::binary | std::ios::in);
-  std::ifstream prefix_file(".prefix_file.txt");
+  std::ifstream index_file(".index_file.txt");
 
-  size_t prefix;
+  size_t obj_size;
   int type;
   object_type obj_type;
 
-  while (prefix_file >> prefix >> type)
+  while (index_file >> obj_size >> type)
   {
     obj_type = static_cast<object_type>(type);
     if (obj_type == object_type::example)
     {
       // skip
-      data_file.ignore(prefix);
+      data_file.ignore(obj_size);
       continue;
     }
 
-    std::vector<char> fb_obj(prefix);
-    data_file.read(&fb_obj[0], prefix);
+    std::vector<char> fb_obj(obj_size);
+    data_file.read(&fb_obj[0], obj_size);
 
     auto flatbuffer_pointer = reinterpret_cast<u_int8_t*>(&fb_obj[0]);
 
@@ -40,18 +40,18 @@ void deserialize_only_example_collections_and_print(const std::string& from)
 void deserialize_and_print(const std::string& from)
 {
   std::ifstream data_file(from, std::ios::binary | std::ios::in);
-  std::ifstream prefix_file(".prefix_file.txt");
+  std::ifstream index_file(".index_file.txt");
 
-  size_t prefix;
+  size_t obj_size;
   int type;
   object_type obj_type;
 
-  while (prefix_file >> prefix >> type)
+  while (index_file >> obj_size >> type)
   {
     obj_type = static_cast<object_type>(type);
 
-    std::vector<char> fb_obj(prefix);
-    data_file.read(&fb_obj[0], prefix);
+    std::vector<char> fb_obj(obj_size);
+    data_file.read(&fb_obj[0], obj_size);
 
     auto flatbuffer_pointer = reinterpret_cast<u_int8_t*>(&fb_obj[0]);
 

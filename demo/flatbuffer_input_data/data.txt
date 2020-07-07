@@ -1,0 +1,3 @@
+0 |b price:0.1 sqft:10 age:100
+1 |f price:0.5 sqft:110 age:1
+0 |a price:.6 sqft:.3 age:.1
