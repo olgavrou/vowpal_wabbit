@@ -5,6 +5,7 @@ void deserialize_and_print(const std::string& from)
   std::ifstream data_file(from, std::ios::binary | std::ios::in);
   size_t prefix_len = sizeof(uint32_t);
   uint32_t prefix;
+  flatbuffers::uoffset_t object_size;
 
   while (!data_file.fail())
   {
@@ -16,9 +17,11 @@ void deserialize_and_print(const std::string& from)
       break;
     }
 
-    std::vector<char> fb_obj(prefix);
+    object_size = flatbuffers::ReadScalar<flatbuffers::uoffset_t>(&prefix);
+
+    std::vector<char> fb_obj(object_size);
     // read one object, object size defined by the read prefix
-    data_file.read(&fb_obj[0], prefix);
+    data_file.read(&fb_obj[0], object_size);
 
     auto flatbuffer_pointer = reinterpret_cast<u_int8_t*>(&fb_obj[0]);
 
