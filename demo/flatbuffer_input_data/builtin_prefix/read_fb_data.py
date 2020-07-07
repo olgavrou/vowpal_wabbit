@@ -8,6 +8,7 @@ import generated.VW.parsers.flatbuffer.ExampleCollection as ec
 import generated.VW.parsers.flatbuffer.ExampleRoot as er
 import generated.VW.parsers.flatbuffer.ExampleType as et
 
+
 def print_example(example):
     ns = example.Namespaces(0)
     print(f"namespace: {ns.Name()}")
@@ -15,15 +16,16 @@ def print_example(example):
         feature = ns.Features(j)
         print(f"feature name: {feature.Name()}, feature value: {feature.Value()}")
 
+
 def deserialize_and_print(from_file):
-    with open(from_file, 'rb') as data_file:
+    with open(from_file, "rb") as data_file:
         while True:
             # read first 32 bits holding the object size
             prefix = data_file.read(4)
             if len(prefix) <= 0:
                 print("Done reading file")
                 break
-            prefix_obj_size = int.from_bytes(prefix, byteorder='little')
+            prefix_obj_size = int.from_bytes(prefix, byteorder="little")
 
             # read the rest of the object to be deserialized
             buf = data_file.read(prefix_obj_size)
@@ -31,7 +33,7 @@ def deserialize_and_print(from_file):
 
             root_example = er.ExampleRoot.GetRootAsExampleRoot(buf, 0)
             tentative_object = root_example.ExampleObj()
-            
+
             if root_example.ExampleObjType() == et.ExampleType().Example:
                 example = e.Example()
                 example.Init(tentative_object.Bytes, tentative_object.Pos)
@@ -45,12 +47,11 @@ def deserialize_and_print(from_file):
                     ex = example_coll.Examples(i)
                     print_example(example_coll.Examples(i))
 
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--from-file",
-        help="flatbuffer file to deserialize",
-        required=True,
+        "--from-file", help="flatbuffer file to deserialize", required=True,
     )
 
     args = parser.parse_args()

@@ -38,6 +38,7 @@ def parse_simple(line):
         fts.append((name, float(value)))
     return float(label), float(weight), ns, fts
 
+
 def create_example(builder, simple_example):
     label, weight, name_space, fts = simple_example
     # create a label
@@ -80,6 +81,7 @@ def create_example(builder, simple_example):
     e.ExampleAddTag(builder, empty_tag)
     return e.ExampleEnd(builder)
 
+
 def create_example_obj(builder, simple_example):
     example = create_example(builder, simple_example)
 
@@ -87,6 +89,7 @@ def create_example_obj(builder, simple_example):
     rt.ExampleRootAddExampleObjType(builder, et.ExampleType.Example)
     rt.ExampleRootAddExampleObj(builder, example)
     return rt.ExampleRootEnd(builder)
+
 
 def create_example_collection_obj(builder, simple_example):
     # create example collection with one example

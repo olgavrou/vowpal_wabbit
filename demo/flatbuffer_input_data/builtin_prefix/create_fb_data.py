@@ -3,10 +3,12 @@ import flatbuffers
 
 import os
 import sys
+
 sys.path.append("..")
 sys.path.append("../..")
 
 import convert_to_fb as tofb
+
 
 def convert(from_file, to_file):
     with open(from_file, "r") as data_file:
@@ -18,7 +20,7 @@ def convert(from_file, to_file):
                 line_count += 1
                 simple_example = tofb.parse_simple(line)
                 root_ex_obj = tofb.create_example_obj(builder, simple_example)
-                
+
                 # finish building and store to file
                 builder.FinishSizePrefixed(root_ex_obj)
                 buf = builder.Output()
@@ -26,7 +28,9 @@ def convert(from_file, to_file):
                 out_f.write(buf)
 
                 # create collection out of example
-                root_coll_obj = tofb.create_example_collection_obj(builder, simple_example)
+                root_coll_obj = tofb.create_example_collection_obj(
+                    builder, simple_example
+                )
                 # finish building and store to file
                 builder.FinishSizePrefixed(root_coll_obj)
                 buf = builder.Output()
