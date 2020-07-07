@@ -30,13 +30,18 @@ endforeach()
 
 add_custom_target(fbschemas DEPENDS ${all_generated_files})
 
-add_executable(create-fb-data.out
-  create_fb_data.cc
-)
+function(add_fb_executable name src)
+  add_executable(${name}.out
+    ${src}
+  )
+  target_include_directories(${name}.out PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+  add_dependencies(${name}.out fbschemas)
+endfunction()
 
-add_executable(read-fb-data.out
-  read_fb_data.cc
-)
+# builtin prefix
+add_fb_executable(bi-create-fb-data builtin_prefix/create_fb_data.cc)
+add_fb_executable(bi-read-fb-data builtin_prefix/read_fb_data.cc)
 
-add_dependencies(create-fb-data.out fbschemas)
-add_dependencies(read-fb-data.out fbschemas)
+# external prefix
+add_fb_executable(ext-create-fb-data external_prefix/create_fb_data.cc)
+add_fb_executable(ext-read-fb-data external_prefix/read_fb_data.cc)

@@ -1,0 +1,39 @@
+namespace VW.parsers.flatbuffer;
+
+table Feature {
+  name:string;
+  value:float;
+  hash:uint64;
+}
+
+table Namespace {
+  name:string;
+  hash:uint8;
+  features:[Feature];
+}
+
+table SimpleLabel {
+  label:float;
+  weight:float;
+}
+
+union Label {SimpleLabel}
+
+table Example {
+  namespaces:[Namespace];
+  label:Label;
+  tag:string;
+}
+
+table ExampleCollection {
+  examples:[Example];
+}
+
+union ExampleType {Example, ExampleCollection}
+
+table ExampleRoot
+{
+  example_obj:ExampleType;
+}
+
+root_type ExampleRoot;
