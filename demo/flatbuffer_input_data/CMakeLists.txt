@@ -39,9 +39,9 @@ function(add_fb_executable name src)
 endfunction()
 
 # builtin prefix
-add_fb_executable(bi-create-fb-data builtin_prefix/create_fb_data.cc)
-add_fb_executable(bi-read-fb-data builtin_prefix/read_fb_data.cc)
+add_fb_executable(one-file-create-fb-data one_file/create_fb_data.cc)
+add_fb_executable(one-file-read-fb-data one_file/read_fb_data.cc)
 
 # external prefix
-add_fb_executable(ext-create-fb-data external_prefix/create_fb_data.cc)
-add_fb_executable(ext-read-fb-data external_prefix/read_fb_data.cc)
+add_fb_executable(two-file-create-fb-data two_files/create_fb_data.cc)
+add_fb_executable(two-file-read-fb-data two_files/read_fb_data.cc)
