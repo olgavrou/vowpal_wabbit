@@ -137,9 +137,8 @@ VW_WARNING_STATE_POP
     all.print_by_ref = print_result_by_ref;
 }
 
-void set_json_reader(vw& all)
+void set_json_reader(vw& all, bool dsjson = false)
 {
-  std::cout << "JSON PARSER" << std::endl;
   // TODO: change to class with virtual method
   // --invert_hash requires the audit parser version to save the extra information.
   if (all.audit || all.hash_inv)
@@ -155,10 +154,10 @@ void set_json_reader(vw& all)
     all.p->audit = false;
   }
 
-  all.p->decision_service_json = true;
+  all.p->decision_service_json = dsjson;
 }
 
-void set_daemon_reader(vw& all, bool json = false)
+void set_daemon_reader(vw& all, bool json = false, bool dsjson = false)
 {
   if (all.p->input->isbinary())
   {
@@ -169,9 +168,9 @@ VW_WARNING_DISABLE_DEPRECATED_USAGE
 VW_WARNING_STATE_POP
     all.print_by_ref = binary_print_result_by_ref;
   }
-  else if (json)
+  else if (json || dsjson)
   {
-    set_json_reader(all);
+    set_json_reader(all, dsjson);
   }
   else
   {
@@ -234,7 +233,7 @@ void reset_source(vw& all, size_t numbits)
       all.final_prediction_sink.push_back(socket->get_writer());
       all.p->input->add_file(socket->get_reader());
 
-      set_daemon_reader(all, all.p->decision_service_json);
+      set_daemon_reader(all, false);
     }
     else
     {
@@ -537,7 +536,7 @@ void enable_sources(vw& all, bool quiet, size_t passes, input_options& input_opt
     else
     {
       all.p->sorted_cache = true;
-      set_daemon_reader(all, (input_options.json || input_options.dsjson));
+      set_daemon_reader(all, input_options.json, input_options.dsjson);
       all.p->sorted_cache = true;
     }
     all.p->resettable = all.p->write_cache || all.daemon;
@@ -598,7 +597,7 @@ void enable_sources(vw& all, bool quiet, size_t passes, input_options& input_opt
 
       if (input_options.json || input_options.dsjson)
       {
-        set_json_reader(all);
+        set_json_reader(all, input_options.dsjson);
       }
       else
       {
