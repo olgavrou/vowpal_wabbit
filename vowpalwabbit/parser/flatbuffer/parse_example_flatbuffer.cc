@@ -19,39 +19,35 @@ namespace flatbuffer {
 
 int flatbuffer_to_examples(vw* all, v_array<example*>& examples)
 {
-  return (int) all->flat_converter->parse_examples(all, examples);
+  if (!all->flat_converter->is_initialized())
+  {
+    all->flat_converter->init(all->p->input);
+  }
+  return static_cast<int>(all->flat_converter->parse_examples(all, examples));
 }
 
-parser::parser(std::string filename) : 
-_filename(filename),
-_flatbuffer_pointer(nullptr),
-_example_index(0),
-_c_hash(0)
-{}
-
-parser::parser(uint8_t *buffer_pointer) : 
-_filename("empty"),
+parser::parser(uint8_t *buffer_pointer) :
 _flatbuffer_pointer(buffer_pointer),
 _example_index(0),
 _c_hash(0)
 {
-  _data = VW::parsers::flatbuffer::GetExampleCollection(_flatbuffer_pointer); //Shift as a separate call
+  _data = VW::parsers::flatbuffer::GetSizePrefixedExampleCollection(_flatbuffer_pointer); //Shift as a separate call
+  _initialized = true;
 }
 
-void parser::init()
+void parser::init(io_buf* input)
 {
-  std::ifstream infile;
-  infile.open(_filename, std::ios::binary | std::ios::in);
-  if (!infile.good()) THROW_EX(VW::vw_argument_invalid_value_exception, "Flatbuffer does not exist");
+  _initialized = true;
+  // for now this will read the entire file and deserialize the
+  // examples collection that will then be accessed via the parse_examples method
+  char* line = nullptr;
+  input->buf_read(line, sizeof(uint32_t));
 
-  infile.seekg(0,std::ios::end);
-  auto length = infile.tellg();
-  infile.seekg(0,std::ios::beg);
-  buffer.resize(length);
-  infile.read(buffer.data(), length);
-  _flatbuffer_pointer = reinterpret_cast<uint8_t*>(buffer.data());
+  _object_size = flatbuffers::ReadScalar<flatbuffers::uoffset_t>(line);
+  // read one object, object size defined by the read prefix
+  input->buf_read(line, _object_size);
 
-  infile.close();
+  auto _flatbuffer_pointer = reinterpret_cast<uint8_t*>(line);
 
   _data = VW::parsers::flatbuffer::GetExampleCollection(_flatbuffer_pointer);
 }
@@ -85,6 +81,11 @@ void parser::parse_example(vw* all, example* ae, const Example* eg)
   for (const auto& ns : *(eg->namespaces())){
     parse_namespaces(all, ae, ns);
   }
+}
+
+bool parser::is_initialized() const
+{
+  return _initialized;
 }
 
 void parser::parse_namespaces(vw* all, example* ae, const Namespace* ns)

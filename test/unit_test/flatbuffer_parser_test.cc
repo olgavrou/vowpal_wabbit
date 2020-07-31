@@ -59,18 +59,17 @@ sample_flatbuffer(flatbuilder& build, VW::parsers::flatbuffer::Label label_type)
 
 BOOST_AUTO_TEST_CASE(check_flatbuffer)
 {
-  // How to get rid of reading a file?
   auto all = VW::initialize("--no_stdin --quiet", nullptr, false, nullptr, nullptr);
 
   flatbuilder build;
 
   auto egcollection = sample_flatbuffer(build, VW::parsers::flatbuffer::Label_SimpleLabel);
-  build._builder.Finish(egcollection);
+  build._builder.FinishSizePrefixed(egcollection);
 
   uint8_t *buf = build._builder.GetBufferPointer();
   int size = build._builder.GetSize();
 
-  all->flat_converter = new VW::parsers::flatbuffer::parser(buf);
+  all->flat_converter = std::unique_ptr<VW::parsers::flatbuffer::parser>(new VW::parsers::flatbuffer::parser(buf));
 
   BOOST_CHECK_EQUAL(all->flat_converter->data()->examples()->Length(), 1);
   BOOST_CHECK_EQUAL(all->flat_converter->data()->examples()->Get(0)->namespaces()->Length(), 1);
@@ -89,12 +88,12 @@ BOOST_AUTO_TEST_CASE(check_parsed_flatbuffer_examples)
 
   flatbuilder build;
   auto egcollection = sample_flatbuffer(build, VW::parsers::flatbuffer::Label_SimpleLabel);
-  build._builder.Finish(egcollection);
+  build._builder.FinishSizePrefixed(egcollection);
 
   uint8_t *buf = build._builder.GetBufferPointer();
   int size = build._builder.GetSize();
 
-  all->flat_converter = new VW::parsers::flatbuffer::parser(buf);
+  all->flat_converter = std::unique_ptr<VW::parsers::flatbuffer::parser>(new VW::parsers::flatbuffer::parser(buf));
   auto examples = parse_flatbuffer(*all);
 
   BOOST_CHECK_EQUAL(examples.size(), 1);

@@ -20,18 +20,19 @@ class VW::parsers::flatbuffer::parser
 
 public:
     bool parse_examples(vw* all, v_array<example*>& examples);
-    void init();
-    parser(std::string filename);
+    void init(io_buf* input);
+    bool is_initialized() const;
+    parser() = default;
     parser(uint8_t *buffer_pointer);
     const VW::parsers::flatbuffer::ExampleCollection* data();
 
 private:
     const VW::parsers::flatbuffer::ExampleCollection* _data;
-    std::string _filename;
     uint8_t* _flatbuffer_pointer;
-    std::vector<char> buffer;
     uint32_t _example_index;
     uint64_t _c_hash;
+    flatbuffers::uoffset_t _object_size;
+    bool _initialized = false;
     
     void parse_example(vw* all, example* ae, const Example* eg);
     void parse_namespaces(vw* all, example* ae, const Namespace* ns);

@@ -244,7 +244,7 @@ void to_flat::convert_txt_to_flat(vw& all)
 
   flatbuffers::Offset<VW::parsers::flatbuffer::ExampleCollection> egcollection = VW::parsers::flatbuffer::CreateExampleCollectionDirect(_builder, &examplecollection);
 
-  _builder.Finish(egcollection);
+  _builder.FinishSizePrefixed(egcollection);
 
   uint8_t *buf = _builder.GetBufferPointer();
   int size = _builder.GetSize();
