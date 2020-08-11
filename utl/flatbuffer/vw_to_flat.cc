@@ -52,11 +52,11 @@ void to_flat::create_simple_label(
 
 void to_flat::create_cb_label(example* v, flatbuffers::Offset<void>& label, VW::parsers::flatbuffer::Label& label_type)
 {
-  std::vector<flatbuffers::Offset<VW::parsers::flatbuffer::CB_class>> costs;
+  std::vector<VW::parsers::flatbuffer::CB_class> costs;
   for (auto const& cost : v->l.cb.costs)
   {
-    costs.push_back(VW::parsers::flatbuffer::CreateCB_class(
-        _builder, cost.cost, cost.action, cost.probability, cost.partial_prediction));
+    costs.push_back(
+        VW::parsers::flatbuffer::CB_class(cost.action, cost.cost, cost.probability, cost.partial_prediction));
   }
   label = VW::parsers::flatbuffer::CreateCBLabelDirect(_builder, v->l.cb.weight, &costs).Union();
   label_type = VW::parsers::flatbuffer::Label_CBLabel;
@@ -116,11 +116,11 @@ void to_flat::create_ccb_label(example* v, flatbuffers::Offset<void>& label, VW:
 void to_flat::create_cb_eval_label(
     example* v, flatbuffers::Offset<void>& label, VW::parsers::flatbuffer::Label& label_type)
 {
-  std::vector<flatbuffers::Offset<VW::parsers::flatbuffer::CB_class>> costs;
+  std::vector<VW::parsers::flatbuffer::CB_class> costs;
   for (const auto& cost : v->l.cb_eval.event.costs)
   {
-    costs.push_back(VW::parsers::flatbuffer::CreateCB_class(
-        _builder, cost.cost, cost.action, cost.probability, cost.partial_prediction));
+    costs.push_back(
+        VW::parsers::flatbuffer::CB_class(cost.action, cost.cost, cost.probability, cost.partial_prediction));
   }
   auto sub_label = CreateCBLabelDirect(_builder, v->l.cb_eval.event.weight, &costs);
   label = VW::parsers::flatbuffer::CreateCB_EVAL_Label(_builder, v->l.cb_eval.action, sub_label).Union();
@@ -262,11 +262,11 @@ void to_flat::convert_txt_to_flat(vw& all)
       // Skip over constant namespace as that will be assigned while reading flatbuffer again
       if (ns == 128) { continue; }
 
-      std::vector<flatbuffers::Offset<VW::parsers::flatbuffer::Feature>> fts;
+      std::vector<VW::parsers::flatbuffer::FeatureNum> fts;
 
       for (features::iterator& f : ae->feature_space[ns])
-      { fts.push_back(VW::parsers::flatbuffer::CreateFeatureDirect(_builder, nullptr, f.value(), f.index())); }
-      namespaces.push_back(VW::parsers::flatbuffer::CreateNamespaceDirect(_builder, nullptr, ns, &fts));
+      { fts.push_back(VW::parsers::flatbuffer::FeatureNum(f.index(), f.value())); }
+      namespaces.push_back(VW::parsers::flatbuffer::CreateNamespaceDirect(_builder, nullptr, ns, &fts, nullptr));
     }
     std::string tag(ae->tag.begin(), ae->tag.size());
 
@@ -311,8 +311,8 @@ void to_flat::convert_txt_to_flat(vw& all)
   if (collection && collection_count > 0)
   {
     auto egcollection = VW::parsers::flatbuffer::CreateExampleCollectionDirect(_builder, &examplecollection);
-    auto root =
-        VW::parsers::flatbuffer::CreateExampleRoot(_builder, VW::parsers::flatbuffer::ExampleType_ExampleCollection, egcollection.Union());
+    auto root = VW::parsers::flatbuffer::CreateExampleRoot(
+        _builder, VW::parsers::flatbuffer::ExampleType_ExampleCollection, egcollection.Union());
     _builder.FinishSizePrefixed(root);
 
     uint8_t* buf = _builder.GetBufferPointer();

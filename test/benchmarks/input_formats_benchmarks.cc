@@ -26,14 +26,30 @@
 #include "vw.h"
 #include "../../utl/flatbuffer/vw_to_flat.h"
 
+auto get_x_numerical_fts = [](int feature_size) {
+  std::stringstream ss;
+  ss << "1:1:0.5 |";
+  for (size_t i = 0; i < feature_size; i++) { ss << " " << std::to_string(i) + ":4.36352"; }
+  std::string s = ss.str();
+  return s;
+};
+
+auto get_x_string_fts = [](int feature_size) {
+  std::stringstream ss;
+  ss << "1:1:0.5 |";
+  for (size_t i = 0; i < feature_size; i++) { ss << " bigfeaturename" + std::to_string(i) + ":10"; }
+  std::string s = ss.str();
+  return s;
+};
+
 flatbuffers::Offset<VW::parsers::flatbuffer::ExampleRoot> pre_hashed_sample_example_flatbuffer(
     flatbuffers::FlatBufferBuilder& builder, std::string& feature_s)
 {
   std::vector<flatbuffers::Offset<VW::parsers::flatbuffer::Namespace>> namespaces;
-  std::vector<flatbuffers::Offset<VW::parsers::flatbuffer::Feature>> fts;
+  std::vector<VW::parsers::flatbuffer::FeatureNum> fts;
 
-  std::vector<flatbuffers::Offset<VW::parsers::flatbuffer::CB_class>> costs;
-  costs.push_back(VW::parsers::flatbuffer::CreateCB_class(builder, 1, 1, 0.5));
+  std::vector<VW::parsers::flatbuffer::CB_class> costs;
+  costs.push_back(VW::parsers::flatbuffer::CB_class(1, 1, 0.5, 0));
   auto label = VW::parsers::flatbuffer::CreateCBLabelDirect(builder, 1, &costs).Union();
   auto labeltype = VW::parsers::flatbuffer::Label_CBLabel;
 
@@ -54,9 +70,10 @@ flatbuffers::Offset<VW::parsers::flatbuffer::ExampleRoot> pre_hashed_sample_exam
     size_t pos_colon = s.find(":");
     auto name = s.substr(0, pos_colon);
     auto value = s.substr(pos_colon + 1);
-    fts.push_back(VW::parsers::flatbuffer::CreateFeatureDirect(builder, nullptr, std::stof(value), std::stoi(name)));
+    fts.push_back(VW::parsers::flatbuffer::FeatureNum(std::stoi(name), std::stof(value)));
   }
-  namespaces.push_back(VW::parsers::flatbuffer::CreateNamespaceDirect(builder, nullptr, constant_namespace, &fts));
+  namespaces.push_back(
+      VW::parsers::flatbuffer::CreateNamespaceDirect(builder, nullptr, constant_namespace, &fts, nullptr));
   auto example = VW::parsers::flatbuffer::CreateExampleDirect(builder, &namespaces, labeltype, label);
   return VW::parsers::flatbuffer::CreateExampleRoot(
       builder, VW::parsers::flatbuffer::ExampleType_Example, example.Union());
@@ -66,10 +83,10 @@ flatbuffers::Offset<VW::parsers::flatbuffer::ExampleRoot> sample_example_flatbuf
     flatbuffers::FlatBufferBuilder& builder, std::string& feature_s)
 {
   std::vector<flatbuffers::Offset<VW::parsers::flatbuffer::Namespace>> namespaces;
-  std::vector<flatbuffers::Offset<VW::parsers::flatbuffer::Feature>> fts;
+  std::vector<flatbuffers::Offset<VW::parsers::flatbuffer::FeatureStr>> fts_str;
 
-  std::vector<flatbuffers::Offset<VW::parsers::flatbuffer::CB_class>> costs;
-  costs.push_back(VW::parsers::flatbuffer::CreateCB_class(builder, 1, 1, 0.5));
+  std::vector<VW::parsers::flatbuffer::CB_class> costs;
+  costs.push_back(VW::parsers::flatbuffer::CB_class(1, 1, 0.5, 0));
   auto label = VW::parsers::flatbuffer::CreateCBLabelDirect(builder, 1, &costs).Union();
   auto labeltype = VW::parsers::flatbuffer::Label_CBLabel;
 
@@ -89,9 +106,10 @@ flatbuffers::Offset<VW::parsers::flatbuffer::ExampleRoot> sample_example_flatbuf
     auto name = s.substr(0, pos_colon);
     auto value = s.substr(pos_colon + 1);
 
-    fts.push_back(VW::parsers::flatbuffer::CreateFeatureDirect(builder, name.c_str(), std::stof(value)));
+    fts_str.push_back(VW::parsers::flatbuffer::CreateFeatureStrDirect(builder, name.c_str(), std::stof(value)));
   }
-  namespaces.push_back(VW::parsers::flatbuffer::CreateNamespaceDirect(builder, nullptr, constant_namespace, &fts));
+  namespaces.push_back(
+      VW::parsers::flatbuffer::CreateNamespaceDirect(builder, nullptr, constant_namespace, nullptr, &fts_str));
   auto example = VW::parsers::flatbuffer::CreateExampleDirect(builder, &namespaces, labeltype, label);
   return VW::parsers::flatbuffer::CreateExampleRoot(
       builder, VW::parsers::flatbuffer::ExampleType_Example, example.Union());
@@ -102,6 +120,7 @@ void create_input_files_in_all_formats(const std::string& es, std::string& prefi
   std::string filename = ".temp_test_" + prefix;
   std::string txt_file = filename + ".txt";
   std::string fb_file = filename + "_" + std::to_string(collection_size) + ".fb";
+  std::string fb_file_no_hash = filename + "_no_hash.fb";
   std::string cache_file = txt_file + ".cache";
   std::remove(txt_file.c_str());
   std::remove(fb_file.c_str());
@@ -134,7 +153,6 @@ void create_input_files_in_all_formats(const std::string& es, std::string& prefi
   converter.convert_txt_to_flat(*vw);
   VW::end_parser(*vw);
 
-  std::string fb_file_no_hash = filename + "_no_hash.fb";
   flatbuffers::FlatBufferBuilder builder;
   std::string example_string = es;
   auto ex = sample_example_flatbuffer(builder, example_string);
@@ -147,6 +165,25 @@ void create_input_files_in_all_formats(const std::string& es, std::string& prefi
   for (size_t i = 0; i < examples; i++) { outfile.write(reinterpret_cast<char*>(buf), size); }
 }
 
+class Setup
+{
+  Setup()
+  {
+    std::string s20 = "20";
+    std::string s40 = "40";
+    std::string s60 = "60";
+    std::string s120 = "120";
+
+    create_input_files_in_all_formats(get_x_string_fts(20), s20);
+    create_input_files_in_all_formats(get_x_string_fts(40), s40);
+    create_input_files_in_all_formats(get_x_string_fts(60), s60);
+    create_input_files_in_all_formats(get_x_string_fts(120), s120);
+  }
+
+public:
+  static void PerformSetup() { static Setup setup; }
+};
+
 template <class... ExtraArgs>
 static void test_flatbuffer(benchmark::State& state, ExtraArgs&&... extra_args)
 {
@@ -154,19 +191,13 @@ static void test_flatbuffer(benchmark::State& state, ExtraArgs&&... extra_args)
   auto example_string = res[0];
   auto prefix = res[1];
   auto collection_size = std::stoi(res[2]);
-
   std::string fb_file = ".temp_test_" + prefix + "_" + std::to_string(collection_size) + ".fb";
-  if (sizeof...(extra_args) == 4)
-  {
-    fb_file = ".temp_test_" + prefix + "_no_hash.fb";
-  }
-
+  if (sizeof...(extra_args) == 4) { fb_file = ".temp_test_" + prefix + "_no_hash.fb"; }
   // create_input_files_in_all_formats(example_string, prefix, collection_size);
-
+  Setup::PerformSetup();
   for (auto _ : state)
   {
-    auto all = VW::initialize(
-        "--no_stdin --cb 2 --flatbuffer --quiet -d " + fb_file, nullptr, false, nullptr, nullptr);
+    auto all = VW::initialize("--no_stdin --cb 2 --flatbuffer --quiet -d " + fb_file, nullptr, false, nullptr, nullptr);
 
     auto examples = v_init<example*>();
     examples.push_back(&VW::get_unused_example(all));
@@ -183,6 +214,7 @@ static void test_text(benchmark::State& state, ExtraArgs&&... extra_args)
   auto example_string = res[0];
   auto prefix = res[1];
   // create_input_files_in_all_formats(example_string, prefix);
+  Setup::PerformSetup();
 
   for (auto _ : state)
   {
@@ -204,6 +236,7 @@ static void test_cache(benchmark::State& state, ExtraArgs&&... extra_args)
   auto example_string = res[0];
   auto prefix = res[1];
   // create_input_files_in_all_formats(example_string, prefix);
+  Setup::PerformSetup();
 
   for (auto _ : state)
   {
@@ -293,8 +326,7 @@ static void bench_fb(benchmark::State& state, ExtraArgs&&... extra_args)
   {
     for (size_t i = 0; i < 20000; i++)
     {
-      vw->flat_converter->parse(buf);
-      vw->flat_converter->parse_examples(vw, examples);
+      vw->flat_converter->parse_examples(vw, examples, buf);
       VW::empty_example(*vw, *examples[0]);
       benchmark::ClobberMemory();
     }
@@ -333,8 +365,7 @@ static void bench_fb_pre_hashed(benchmark::State& state, ExtraArgs&&... extra_ar
   {
     for (size_t i = 0; i < 20000; i++)
     {
-      vw->flat_converter->parse(reinterpret_cast<uint8_t*>(buffer->data()));
-      vw->flat_converter->parse_examples(vw, examples);
+      vw->flat_converter->parse_examples(vw, examples, reinterpret_cast<uint8_t*>(buffer->data()));
       VW::empty_example(*vw, *examples[0]);
       benchmark::ClobberMemory();
     }
@@ -444,7 +475,7 @@ static void bench_fb_io_buf(benchmark::State& state, ExtraArgs&&... extra_args)
     for (size_t i = 0; i < 20000; i++)
     {
       reader_view_of_buffer.add_file(VW::io::create_buffer_view(buffer.data(), buffer.size()));
-      vw->flat_converter->parse_examples_wio(vw, examples);
+      vw->flat_converter->parse_examples(vw, examples);
       VW::empty_example(*vw, *examples[0]);
       benchmark::ClobberMemory();
     }
@@ -485,7 +516,7 @@ static void bench_fb_pre_hashed_io_buf(benchmark::State& state, ExtraArgs&&... e
     for (size_t i = 0; i < 20000; i++)
     {
       reader_view_of_buffer.add_file(VW::io::create_buffer_view(buffer->data(), buffer->size()));
-      vw->flat_converter->parse_examples_wio(vw, examples);
+      vw->flat_converter->parse_examples(vw, examples);
       VW::empty_example(*vw, *examples[0]);
       benchmark::ClobberMemory();
     }
@@ -609,35 +640,17 @@ static void cache_io(benchmark::State& state)
   }
 }
 
-auto get_x_numerical_fts = [](int feature_size) {
-  std::stringstream ss;
-  ss << "1:1:0.5 |";
-  for (size_t i = 0; i < feature_size; i++) { ss << " " << std::to_string(i) + ":4.36352"; }
-  std::string s = ss.str();
-  return s;
-};
+BENCHMARK_CAPTURE(test_cache, 20_string_fts, get_x_string_fts(20), "20");
+BENCHMARK_CAPTURE(test_text, 20_string_fts, get_x_string_fts(20), "20");
+BENCHMARK_CAPTURE(test_flatbuffer, 20_string_fts, get_x_string_fts(20), "20", "0");
+BENCHMARK_CAPTURE(test_flatbuffer, 20_string_fts_500, get_x_string_fts(20), "20", "500");
+BENCHMARK_CAPTURE(test_flatbuffer, 20_string_fts_1000, get_x_string_fts(20), "20", "1000");
 
-auto get_x_string_fts = [](int feature_size) {
-  std::stringstream ss;
-  ss << "1:1:0.5 |";
-  for (size_t i = 0; i < feature_size; i++) { ss << " bigfeaturename" + std::to_string(i) + ":10"; }
-  std::string s = ss.str();
-  return s;
-};
-
-// BENCHMARK_CAPTURE(test_cache, 20_string_fts, get_x_string_fts(20), "20");
-// BENCHMARK_CAPTURE(test_text, 20_string_fts, get_x_string_fts(20), "20");
-// BENCHMARK_CAPTURE(test_flatbuffer, 20_string_fts, get_x_string_fts(20), "20", "0");
-// BENCHMARK_CAPTURE(test_flatbuffer, 20_string_fts_500, get_x_string_fts(20), "20", "500");
-// BENCHMARK_CAPTURE(test_flatbuffer, 20_string_fts_1000, get_x_string_fts(20), "20", "1000");
-// BENCHMARK_CAPTURE(test_flatbuffer, 20_string_fts_2000, get_x_string_fts(20), "20", "2000");
-
-// BENCHMARK_CAPTURE(test_cache, 40_string_fts, get_x_string_fts(40), "40");
-// BENCHMARK_CAPTURE(test_text, 40_string_fts, get_x_string_fts(40), "40");
-// BENCHMARK_CAPTURE(test_flatbuffer, 40_string_fts, get_x_string_fts(40), "40", "0");
-// BENCHMARK_CAPTURE(test_flatbuffer, 40_string_fts_500, get_x_string_fts(40), "40", "500");
-// BENCHMARK_CAPTURE(test_flatbuffer, 40_string_fts_1000, get_x_string_fts(40), "40", "1000");
-// BENCHMARK_CAPTURE(test_flatbuffer, 40_string_fts_2000, get_x_string_fts(40), "40", "2000");
+BENCHMARK_CAPTURE(test_cache, 40_string_fts, get_x_string_fts(40), "40");
+BENCHMARK_CAPTURE(test_text, 40_string_fts, get_x_string_fts(40), "40");
+BENCHMARK_CAPTURE(test_flatbuffer, 40_string_fts, get_x_string_fts(40), "40", "0");
+BENCHMARK_CAPTURE(test_flatbuffer, 40_string_fts_500, get_x_string_fts(40), "40", "500");
+BENCHMARK_CAPTURE(test_flatbuffer, 40_string_fts_1000, get_x_string_fts(40), "40", "1000");
 
 BENCHMARK_CAPTURE(test_cache, 60_string_fts, get_x_string_fts(60), "60");
 BENCHMARK_CAPTURE(test_text, 60_string_fts, get_x_string_fts(60), "60");
@@ -645,7 +658,6 @@ BENCHMARK_CAPTURE(test_flatbuffer, 60_string_fts_no_hash, get_x_string_fts(60), 
 BENCHMARK_CAPTURE(test_flatbuffer, 60_string_fts, get_x_string_fts(60), "60", "0");
 BENCHMARK_CAPTURE(test_flatbuffer, 60_string_fts_500, get_x_string_fts(60), "60", "500");
 BENCHMARK_CAPTURE(test_flatbuffer, 60_string_fts_1000, get_x_string_fts(60), "60", "1000");
-BENCHMARK_CAPTURE(test_flatbuffer, 60_string_fts_2000, get_x_string_fts(60), "60", "2000");
 
 BENCHMARK_CAPTURE(test_cache, 120_string_fts, get_x_string_fts(120), "120");
 BENCHMARK_CAPTURE(test_text, 120_string_fts, get_x_string_fts(120), "120");
@@ -653,85 +665,65 @@ BENCHMARK_CAPTURE(test_flatbuffer, 120_string_fts_no_hash, get_x_string_fts(120)
 BENCHMARK_CAPTURE(test_flatbuffer, 120_string_fts, get_x_string_fts(120), "120", "0");
 BENCHMARK_CAPTURE(test_flatbuffer, 120_string_fts_500, get_x_string_fts(120), "120", "500");
 BENCHMARK_CAPTURE(test_flatbuffer, 120_string_fts_1000, get_x_string_fts(120), "120", "1000");
-BENCHMARK_CAPTURE(test_flatbuffer, 120_string_fts_2000, get_x_string_fts(120), "120", "2000");
 
-// BENCHMARK_CAPTURE(bench_text, 20_string_fts, get_x_string_fts(20));
-// BENCHMARK_CAPTURE(bench_fb, 20_string_fts, get_x_string_fts(20));
-// BENCHMARK_CAPTURE(bench_fb_pre_hashed, 20_string_fts, get_x_string_fts(20), "true");
-// BENCHMARK_CAPTURE(bench_cache_io_buf, 20_string_fts, get_x_string_fts(20));
-// BENCHMARK_CAPTURE(bench_text_io_buf, 20_string_fts, get_x_string_fts(20));
-// BENCHMARK_CAPTURE(bench_fb_io_buf, 20_string_fts, get_x_string_fts(20));
-// BENCHMARK_CAPTURE(bench_fb_pre_hashed_io_buf, 20_string_fts, get_x_string_fts(20), "true");
+BENCHMARK_CAPTURE(bench_text, 20_string_fts, get_x_string_fts(20));
+BENCHMARK_CAPTURE(bench_fb, 20_string_fts, get_x_string_fts(20));
+BENCHMARK_CAPTURE(bench_fb_pre_hashed, 20_string_fts, get_x_string_fts(20), "true");
+BENCHMARK_CAPTURE(bench_cache_io_buf, 20_string_fts, get_x_string_fts(20));
+BENCHMARK_CAPTURE(bench_text_io_buf, 20_string_fts, get_x_string_fts(20));
+BENCHMARK_CAPTURE(bench_fb_io_buf, 20_string_fts, get_x_string_fts(20));
+BENCHMARK_CAPTURE(bench_fb_pre_hashed_io_buf, 20_string_fts, get_x_string_fts(20), "true");
 
-// BENCHMARK_CAPTURE(bench_text, 40_string_fts, get_x_string_fts(40));
-// BENCHMARK_CAPTURE(bench_fb, 40_string_fts, get_x_string_fts(40));
-// BENCHMARK_CAPTURE(bench_fb_pre_hashed, 40_string_fts, get_x_string_fts(40), "true");
-// BENCHMARK_CAPTURE(bench_cache_io_buf, 40_string_fts, get_x_string_fts(40));
-// BENCHMARK_CAPTURE(bench_text_io_buf, 40_string_fts, get_x_string_fts(40));
-// BENCHMARK_CAPTURE(bench_fb_io_buf, 40_string_fts, get_x_string_fts(40));
-// BENCHMARK_CAPTURE(bench_fb_pre_hashed_io_buf, 40_string_fts, get_x_string_fts(40), "true");
+BENCHMARK_CAPTURE(bench_text, 40_string_fts, get_x_string_fts(40));
+BENCHMARK_CAPTURE(bench_fb, 40_string_fts, get_x_string_fts(40));
+BENCHMARK_CAPTURE(bench_fb_pre_hashed, 40_string_fts, get_x_string_fts(40), "true");
+BENCHMARK_CAPTURE(bench_cache_io_buf, 40_string_fts, get_x_string_fts(40));
+BENCHMARK_CAPTURE(bench_text_io_buf, 40_string_fts, get_x_string_fts(40));
+BENCHMARK_CAPTURE(bench_fb_io_buf, 40_string_fts, get_x_string_fts(40));
+BENCHMARK_CAPTURE(bench_fb_pre_hashed_io_buf, 40_string_fts, get_x_string_fts(40), "true");
 
-// BENCHMARK_CAPTURE(bench_text, 60_string_fts, get_x_string_fts(60));
-// BENCHMARK_CAPTURE(bench_fb, 60_string_fts, get_x_string_fts(60));
-// BENCHMARK_CAPTURE(bench_fb_pre_hashed, 60_string_fts, get_x_string_fts(60), "true");
-// BENCHMARK_CAPTURE(bench_cache_io_buf, 60_string_fts, get_x_string_fts(60));
-// BENCHMARK_CAPTURE(bench_text_io_buf, 60_string_fts, get_x_string_fts(60));
-// BENCHMARK_CAPTURE(bench_fb_io_buf, 60_string_fts, get_x_string_fts(60));
-// BENCHMARK_CAPTURE(bench_fb_pre_hashed_io_buf, 60_string_fts, get_x_string_fts(60), "true");
+BENCHMARK_CAPTURE(bench_text, 60_string_fts, get_x_string_fts(60));
+BENCHMARK_CAPTURE(bench_fb, 60_string_fts, get_x_string_fts(60));
+BENCHMARK_CAPTURE(bench_fb_pre_hashed, 60_string_fts, get_x_string_fts(60), "true");
+BENCHMARK_CAPTURE(bench_cache_io_buf, 60_string_fts, get_x_string_fts(60));
+BENCHMARK_CAPTURE(bench_text_io_buf, 60_string_fts, get_x_string_fts(60));
+BENCHMARK_CAPTURE(bench_fb_io_buf, 60_string_fts, get_x_string_fts(60));
+BENCHMARK_CAPTURE(bench_fb_pre_hashed_io_buf, 60_string_fts, get_x_string_fts(60), "true");
 
-// BENCHMARK_CAPTURE(bench_text, 120_string_fts, get_x_string_fts(120));
-// BENCHMARK_CAPTURE(bench_fb, 120_string_fts, get_x_string_fts(120));
-// BENCHMARK_CAPTURE(bench_fb_pre_hashed, 120_string_fts, get_x_string_fts(120), "true");
-// BENCHMARK_CAPTURE(bench_cache_io_buf, 120_string_fts, get_x_string_fts(120));
-// BENCHMARK_CAPTURE(bench_text_io_buf, 120_string_fts, get_x_string_fts(120));
-// BENCHMARK_CAPTURE(bench_fb_io_buf, 120_string_fts, get_x_string_fts(120));
-// BENCHMARK_CAPTURE(bench_fb_pre_hashed_io_buf, 120_string_fts, get_x_string_fts(120), "true");
+BENCHMARK_CAPTURE(bench_text, 120_string_fts, get_x_string_fts(120));
+BENCHMARK_CAPTURE(bench_fb, 120_string_fts, get_x_string_fts(120));
+BENCHMARK_CAPTURE(bench_fb_pre_hashed, 120_string_fts, get_x_string_fts(120), "true");
+BENCHMARK_CAPTURE(bench_cache_io_buf, 120_string_fts, get_x_string_fts(120));
+BENCHMARK_CAPTURE(bench_text_io_buf, 120_string_fts, get_x_string_fts(120));
+BENCHMARK_CAPTURE(bench_fb_io_buf, 120_string_fts, get_x_string_fts(120));
+BENCHMARK_CAPTURE(bench_fb_pre_hashed_io_buf, 120_string_fts, get_x_string_fts(120), "true");
 
-// BENCHMARK_CAPTURE(bench_text, 20fts, get_x_numerical_fts(20));
-// BENCHMARK_CAPTURE(bench_fb_pre_hashed, 20fts, get_x_numerical_fts(20), false);
-// BENCHMARK_CAPTURE(bench_cache_io_buf, 20fts, get_x_numerical_fts(20));
-// BENCHMARK_CAPTURE(bench_text_io_buf, 20fts, get_x_numerical_fts(20));
-// BENCHMARK_CAPTURE(bench_fb_pre_hashed_io_buf, 20fts, get_x_numerical_fts(20));
+BENCHMARK_CAPTURE(bench_text, 20fts, get_x_numerical_fts(20));
+BENCHMARK_CAPTURE(bench_fb_pre_hashed, 20fts, get_x_numerical_fts(20), "false");
+BENCHMARK_CAPTURE(bench_cache_io_buf, 20fts, get_x_numerical_fts(20));
+BENCHMARK_CAPTURE(bench_text_io_buf, 20fts, get_x_numerical_fts(20));
+BENCHMARK_CAPTURE(bench_fb_pre_hashed_io_buf, 20fts, get_x_numerical_fts(20), "false");
 
-// BENCHMARK_CAPTURE(bench_text, 40fts, get_x_numerical_fts(40));
-// BENCHMARK_CAPTURE(bench_fb_pre_hashed, 40fts, get_x_numerical_fts(40), false);
-// BENCHMARK_CAPTURE(bench_cache_io_buf, 40fts, get_x_numerical_fts(40));
-// BENCHMARK_CAPTURE(bench_text_io_buf, 40fts, get_x_numerical_fts(40));
-// BENCHMARK_CAPTURE(bench_fb_pre_hashed_io_buf, 40fts, get_x_numerical_fts(40));
+BENCHMARK_CAPTURE(bench_text, 40fts, get_x_numerical_fts(40));
+BENCHMARK_CAPTURE(bench_fb_pre_hashed, 40fts, get_x_numerical_fts(40), "false");
+BENCHMARK_CAPTURE(bench_cache_io_buf, 40fts, get_x_numerical_fts(40));
+BENCHMARK_CAPTURE(bench_text_io_buf, 40fts, get_x_numerical_fts(40));
+BENCHMARK_CAPTURE(bench_fb_pre_hashed_io_buf, 40fts, get_x_numerical_fts(40), "false");
 
-// BENCHMARK_CAPTURE(bench_text, 60fts, get_x_numerical_fts(60));
-// BENCHMARK_CAPTURE(bench_fb_pre_hashed, 60fts, get_x_numerical_fts(60), false);
-// BENCHMARK_CAPTURE(bench_cache_io_buf, 60fts, get_x_numerical_fts(60));
-// BENCHMARK_CAPTURE(bench_text_io_buf, 60fts, get_x_numerical_fts(60));
-// BENCHMARK_CAPTURE(bench_fb_pre_hashed_io_buf, 60fts, get_x_numerical_fts(60));
+BENCHMARK_CAPTURE(bench_text, 60fts, get_x_numerical_fts(60));
+BENCHMARK_CAPTURE(bench_fb_pre_hashed, 60fts, get_x_numerical_fts(60), "false");
+BENCHMARK_CAPTURE(bench_cache_io_buf, 60fts, get_x_numerical_fts(60));
+BENCHMARK_CAPTURE(bench_text_io_buf, 60fts, get_x_numerical_fts(60));
+BENCHMARK_CAPTURE(bench_fb_pre_hashed_io_buf, 60fts, get_x_numerical_fts(60), "false");
 
-// BENCHMARK_CAPTURE(bench_text, 120fts, get_x_numerical_fts(120));
-// BENCHMARK_CAPTURE(bench_fb_pre_hashed, 120fts, get_x_numerical_fts(120), false);
-// BENCHMARK_CAPTURE(bench_cache_io_buf, 120fts, get_x_numerical_fts(120));
-// BENCHMARK_CAPTURE(bench_text_io_buf, 120fts, get_x_numerical_fts(120));
-// BENCHMARK_CAPTURE(bench_fb_pre_hashed_io_buf, 120fts, get_x_numerical_fts(120));
+BENCHMARK_CAPTURE(bench_text, 120fts, get_x_numerical_fts(120));
+BENCHMARK_CAPTURE(bench_fb_pre_hashed, 120fts, get_x_numerical_fts(120), "false");
+BENCHMARK_CAPTURE(bench_cache_io_buf, 120fts, get_x_numerical_fts(120));
+BENCHMARK_CAPTURE(bench_text_io_buf, 120fts, get_x_numerical_fts(120));
+BENCHMARK_CAPTURE(bench_fb_pre_hashed_io_buf, 120fts, get_x_numerical_fts(120), "false");
 
-// BENCHMARK(bench_text);
-// BENCHMARK(bench_cache_io_buf);
-// BENCHMARK(bench_text_io_buf);
-// BENCHMARK(bench_fb_pre_hashed_io_buf);
 // // BENCHMARK(cache_io);
 // BENCHMARK(text_buf_reader);
 // BENCHMARK(flatbuffer_buf_reader);
 // Run the benchmark
 BENCHMARK_MAIN();
-
-// for (auto& f : examples[0]->feature_space)
-// {
-//   for (size_t i = 0; i < f.indicies.size(); i++) { std::cout << f.indicies[i] << ":" << f.values[i] << std::endl; }
-// }
-
-// std::string example_string(
-//     "1:1:0.5 | 3:4.36352 4:4.36352 5:4.36352 6:4.36352 7:4.36352 8:4.36352 9:4.36352 10:4.36352 11:4.36352 "
-//     "12:4.36352 13:4.36352 14:4.36352 15:4.36352 16:4.36352 17:4.36352 18:4.36352 19:4.36352 20:4.36352 21:4.36352
-//     " "22:4.36352 23:4.36352 24:4.36352 25:4.36352 26:4.36352 27:4.36352 28:4.36352 29:4.36352 30:4.36352
-//     31:4.36352 " "32:4.36352 33:4.36352 34:4.36352 35:4.36352 36:4.36352 37:4.36352 38:4.36352 39:4.36352
-//     40:4.36352 41:4.36352 " "42:4.36352 43:4.36352 44:4.36352 45:4.36352 46:4.36352 47:4.36352 48:4.36352
-//     49:4.36352 50:4.36352 51:4.36352");
-
-// BENCHMARK_CAPTURE(bench_fb_pre_hashed, bench_fb_pre_hashed, example_string);

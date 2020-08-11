@@ -21,13 +21,7 @@ namespace flatbuffer
 {
 int flatbuffer_to_examples(vw* all, v_array<example*>& examples)
 {
-  return static_cast<int>(all->flat_converter->parse_examples_wio(all, examples));
-}
-
-parser::parser(uint8_t* buffer_pointer) : _flatbuffer_pointer(buffer_pointer), _example_index(0), _c_hash(0)
-{
-  _data = VW::parsers::flatbuffer::GetSizePrefixedExampleRoot(_flatbuffer_pointer);  // Shift as a separate call
-  _initialized = true;
+  return static_cast<int>(all->flat_converter->parse_examples(all, examples));
 }
 
 const VW::parsers::flatbuffer::ExampleRoot* parser::data() { return _data; }
@@ -45,13 +39,28 @@ void parser::process_collection_item(vw* all, v_array<example*>& examples)
   }
 }
 
-void parser::parse(uint8_t* buffer_pointer)
+bool parser::parse(vw* all, uint8_t* buffer_pointer)
 {
-  _flatbuffer_pointer = buffer_pointer;
-  _data = VW::parsers::flatbuffer::GetSizePrefixedExampleRoot(_flatbuffer_pointer);
+  if (buffer_pointer)
+  {
+    _flatbuffer_pointer = buffer_pointer;
+    _data = VW::parsers::flatbuffer::GetSizePrefixedExampleRoot(_flatbuffer_pointer);
+    return true;
+  }
+  char* line = nullptr;
+  auto len = all->p->input->buf_read(line, sizeof(uint32_t));
+  if (len < sizeof(uint32_t)) { return false; }
+
+  _object_size = flatbuffers::ReadScalar<flatbuffers::uoffset_t>(line);
+  // read one object, object size defined by the read prefix
+  all->p->input->buf_read(line, _object_size);
+  _flatbuffer_pointer = reinterpret_cast<uint8_t*>(line);
+
+  _data = VW::parsers::flatbuffer::GetExampleRoot(_flatbuffer_pointer);
+  return true;
 }
 
-bool parser::parse_examples_wio(vw* all, v_array<example*>& examples)
+bool parser::parse_examples(vw* all, v_array<example*>& examples, uint8_t* buffer_pointer)
 {
   // for now this will read the entire file and deserialize the
   // examples collection that will then be accessed via the parse_examples method
@@ -62,69 +71,7 @@ bool parser::parse_examples_wio(vw* all, v_array<example*>& examples)
   }
   else
   {
-    char* line = nullptr;
-    auto len = all->p->input->buf_read(line, sizeof(uint32_t));
-    if (len < sizeof(uint32_t))
-    {
-      return false;
-    }
-
-    _object_size = flatbuffers::ReadScalar<flatbuffers::uoffset_t>(line);
-    // read one object, object size defined by the read prefix
-    all->p->input->buf_read(line, _object_size);
-    _flatbuffer_pointer = reinterpret_cast<uint8_t*>(line);
-
-    _data = VW::parsers::flatbuffer::GetExampleRoot(_flatbuffer_pointer);
-
-    switch (_data->example_obj_type())
-    {
-      case VW::parsers::flatbuffer::ExampleType_Example:
-      {
-        const auto example = _data->example_obj_as_Example();
-        parse_example(all, examples[0], example);
-        return true;
-      }
-      break;
-      case VW::parsers::flatbuffer::ExampleType_ExampleCollection:
-      {
-        _active_collection = true;
-        process_collection_item(all, examples);
-        return true;
-      }
-      break;
-
-      default:
-        break;
-    }
-
-    return false;
-  }
-}
-
-bool parser::parse_examples(vw* all, v_array<example*>& examples)
-{
-  // for now this will read the entire file and deserialize the
-  // examples collection that will then be accessed via the parse_examples method
-  if (_active_collection && _example_index < _data->example_obj_as_ExampleCollection()->examples()->Length())
-  {
-    process_collection_item(all, examples);
-    return true;
-  }
-  else
-  {
-    // char* line = nullptr;
-    // auto len = all->p->input->buf_read(line, sizeof(uint32_t));
-    // if (len < sizeof(uint32_t))
-    // {
-    //   return false;
-    // }
-
-    // _object_size = flatbuffers::ReadScalar<flatbuffers::uoffset_t>(line);
-    // // read one object, object size defined by the read prefix
-    // all->p->input->buf_read(line, _object_size);
-    // auto _flatbuffer_pointer = reinterpret_cast<uint8_t*>(line);
-
-    // auto _data = VW::parsers::flatbuffer::GetExampleRoot(_flatbuffer_pointer);
+    if (!parse(all, buffer_pointer)) { return false; }
 
     switch (_data->example_obj_type())
     {
@@ -184,21 +131,31 @@ void parser::parse_namespaces(vw* all, example* ae, const Namespace* ns)
 
   auto& fs = ae->feature_space[temp_index];
 
-  for (const auto& feature : *(ns->features())) { parse_features(all, fs, feature); }
-}
-
-void parser::parse_features(vw* all, features& fs, const Feature* feature)
-{
-  if (flatbuffers::IsFieldPresent(feature, Feature::VT_NAME))
+  if (flatbuffers::IsFieldPresent(ns, Namespace::VT_FEATURESSTR))
   {
-    uint64_t word_hash = (all->p->hasher(reinterpret_cast<const char*>(feature->name()->Data()), feature->name()->Length(), _c_hash) & all->parse_mask);
-    // uint64_t word_hash = (all->p->hasher(feature->name()->c_str(), feature->name()->Length(), _c_hash) & all->parse_mask);
-    fs.push_back(feature->value(), word_hash);
+    // string features
+    for (const auto& feature : *(ns->featuresStr())) { parse_features_str(all, fs, feature); }
+    // for (flatbuffers::uoffset_t i = 0; i < ns->featuresStr()->Length(); i++)
+    // { parse_features_str(all, fs, (ns->featuresStr()->Get(i)), (ns->featuresNum()->Get(i))); }
   }
   else
   {
-    fs.push_back(feature->value(), feature->hash());
+    // numerical features
+    for (const auto& feature : *(ns->featuresNum())) { parse_features_num(fs, feature); }
   }
+}
+
+void parser::parse_features_str(vw* all, features& fs, const FeatureStr* feature_str)
+{
+  uint64_t word_hash = (all->p->hasher(reinterpret_cast<const char*>(feature_str->name()->Data()),
+                            feature_str->name()->Length(), _c_hash) &
+      all->parse_mask);
+  fs.push_back(feature_str->value(), word_hash);
+}
+
+void parser::parse_features_num(features& fs, const FeatureNum* feature)
+{
+  fs.push_back(feature->value(), feature->hash());
 }
 
 void parser::parse_flat_label(shared_data* sd, example* ae, const Example* eg)

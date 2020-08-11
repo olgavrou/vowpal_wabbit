@@ -1,15 +1,20 @@
 namespace VW.parsers.flatbuffer;
 
-table Feature {
+struct FeatureNum {
+  hash:uint64;
+  value:float;
+}
+
+table FeatureStr {
   name:string;
   value:float;
-  hash:uint64;
 }
 
 table Namespace {
   name:string;
   hash:uint8;
-  features:[Feature];
+  featuresNum:[FeatureNum];
+  featuresStr:[FeatureStr];
 }
 
 table SimpleLabel {
@@ -17,9 +22,9 @@ table SimpleLabel {
   weight:float;
 }
 
-table CB_class {
-  cost:float;
+struct CB_class {
   action:uint32;
+  cost:float;
   probability:float;
   partial_pred:float;
 }
