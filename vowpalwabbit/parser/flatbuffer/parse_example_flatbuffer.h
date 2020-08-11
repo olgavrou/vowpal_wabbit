@@ -20,20 +20,24 @@ class VW::parsers::flatbuffer::parser
 
 public:
     bool parse_examples(vw* all, v_array<example*>& examples);
-    void init(io_buf* input);
+    // void init(io_buf* input);
     bool is_initialized() const;
     parser() = default;
     parser(uint8_t *buffer_pointer);
-    const VW::parsers::flatbuffer::ExampleCollection* data();
+    void parse(uint8_t* buffer_pointer);
+    const VW::parsers::flatbuffer::ExampleRoot* data();
+    bool parse_examples_wio(vw* all, v_array<example*>& examples);
 
 private:
-    const VW::parsers::flatbuffer::ExampleCollection* _data;
+    const VW::parsers::flatbuffer::ExampleRoot* _data;
     uint8_t* _flatbuffer_pointer;
     uint32_t _example_index;
+    bool _active_collection = false;
     uint64_t _c_hash;
     flatbuffers::uoffset_t _object_size;
     bool _initialized = false;
     
+    void process_collection_item(vw* all, v_array<example*>& examples);
     void parse_example(vw* all, example* ae, const Example* eg);
     void parse_namespaces(vw* all, example* ae, const Namespace* ns);
     void parse_features(vw* all, features& fs, const Feature* feature);
