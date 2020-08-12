@@ -391,7 +391,7 @@ std::shared_ptr<std::vector<char>> get_pre_hashed_fb_buffer(const std::string& e
 }
 
 template <class... ExtraArgs>
-static void bench_fb(benchmark::State& state, ExtraArgs&&... extra_args)
+static void bench_fb_no_hash(benchmark::State& state, ExtraArgs&&... extra_args)
 {
   std::string res[sizeof...(extra_args)] = {extra_args...};
   auto example_string = res[0];
@@ -539,7 +539,7 @@ static void bench_cache_io_buf_collections(benchmark::State& state, ExtraArgs&&.
 }
 
 template <class... ExtraArgs>
-static void bench_fb_io_buf(benchmark::State& state, ExtraArgs&&... extra_args)
+static void bench_fb_no_hash_io_buf(benchmark::State& state, ExtraArgs&&... extra_args)
 {
   std::string res[sizeof...(extra_args)] = {extra_args...};
   auto example_string = res[0];
@@ -766,60 +766,68 @@ BENCHMARK_CAPTURE(test_flatbuffer, 120_string_fts_500, get_x_string_fts(120), "1
 BENCHMARK_CAPTURE(test_flatbuffer, 120_string_fts_1000, get_x_string_fts(120), "120", "1000");
 
 BENCHMARK_CAPTURE(bench_text, 20_string_fts, get_x_string_fts(20));
-BENCHMARK_CAPTURE(bench_fb, 20_string_fts, get_x_string_fts(20));
+BENCHMARK_CAPTURE(bench_fb_no_hash, 20_string_fts, get_x_string_fts(20));
 BENCHMARK_CAPTURE(bench_fb_pre_hashed, 20_string_fts, get_x_string_fts(20), "true");
 BENCHMARK_CAPTURE(bench_cache_io_buf, 20_string_fts, get_x_string_fts(20));
 BENCHMARK_CAPTURE(bench_text_io_buf, 20_string_fts, get_x_string_fts(20));
-BENCHMARK_CAPTURE(bench_fb_io_buf, 20_string_fts, get_x_string_fts(20));
+BENCHMARK_CAPTURE(bench_fb_no_hash_io_buf, 20_string_fts, get_x_string_fts(20));
 BENCHMARK_CAPTURE(bench_fb_pre_hashed_io_buf, 20_string_fts, get_x_string_fts(20), "true");
 
 BENCHMARK_CAPTURE(bench_text, 40_string_fts, get_x_string_fts(40));
-BENCHMARK_CAPTURE(bench_fb, 40_string_fts, get_x_string_fts(40));
+BENCHMARK_CAPTURE(bench_fb_no_hash, 40_string_fts, get_x_string_fts(40));
 BENCHMARK_CAPTURE(bench_fb_pre_hashed, 40_string_fts, get_x_string_fts(40), "true");
 BENCHMARK_CAPTURE(bench_cache_io_buf, 40_string_fts, get_x_string_fts(40));
 BENCHMARK_CAPTURE(bench_text_io_buf, 40_string_fts, get_x_string_fts(40));
-BENCHMARK_CAPTURE(bench_fb_io_buf, 40_string_fts, get_x_string_fts(40));
+BENCHMARK_CAPTURE(bench_fb_no_hash_io_buf, 40_string_fts, get_x_string_fts(40));
 BENCHMARK_CAPTURE(bench_fb_pre_hashed_io_buf, 40_string_fts, get_x_string_fts(40), "true");
 
 BENCHMARK_CAPTURE(bench_text, 60_string_fts, get_x_string_fts(60));
-BENCHMARK_CAPTURE(bench_fb, 60_string_fts, get_x_string_fts(60));
+BENCHMARK_CAPTURE(bench_fb_no_hash, 60_string_fts, get_x_string_fts(60));
 BENCHMARK_CAPTURE(bench_fb_pre_hashed, 60_string_fts, get_x_string_fts(60), "true");
 BENCHMARK_CAPTURE(bench_cache_io_buf, 60_string_fts, get_x_string_fts(60));
 BENCHMARK_CAPTURE(bench_text_io_buf, 60_string_fts, get_x_string_fts(60));
-BENCHMARK_CAPTURE(bench_fb_io_buf, 60_string_fts, get_x_string_fts(60));
+BENCHMARK_CAPTURE(bench_fb_no_hash_io_buf, 60_string_fts, get_x_string_fts(60));
 BENCHMARK_CAPTURE(bench_fb_pre_hashed_io_buf, 60_string_fts, get_x_string_fts(60), "true");
 
 BENCHMARK_CAPTURE(bench_text, 120_string_fts, get_x_string_fts(120));
-BENCHMARK_CAPTURE(bench_fb, 120_string_fts, get_x_string_fts(120));
+BENCHMARK_CAPTURE(bench_fb_no_hash, 120_string_fts, get_x_string_fts(120));
 BENCHMARK_CAPTURE(bench_fb_pre_hashed, 120_string_fts, get_x_string_fts(120), "true");
 BENCHMARK_CAPTURE(bench_cache_io_buf, 120_string_fts, get_x_string_fts(120));
 BENCHMARK_CAPTURE(bench_text_io_buf, 120_string_fts, get_x_string_fts(120));
-BENCHMARK_CAPTURE(bench_fb_io_buf, 120_string_fts, get_x_string_fts(120));
+BENCHMARK_CAPTURE(bench_fb_no_hash_io_buf, 120_string_fts, get_x_string_fts(120));
 BENCHMARK_CAPTURE(bench_fb_pre_hashed_io_buf, 120_string_fts, get_x_string_fts(120), "true");
 
-BENCHMARK_CAPTURE(bench_text, 20fts, get_x_numerical_fts(20));
-BENCHMARK_CAPTURE(bench_fb_pre_hashed, 20fts, get_x_numerical_fts(20), "false");
-BENCHMARK_CAPTURE(bench_cache_io_buf, 20fts, get_x_numerical_fts(20));
-BENCHMARK_CAPTURE(bench_text_io_buf, 20fts, get_x_numerical_fts(20));
-BENCHMARK_CAPTURE(bench_fb_pre_hashed_io_buf, 20fts, get_x_numerical_fts(20), "false");
+BENCHMARK_CAPTURE(bench_text, 20_num_fts, get_x_numerical_fts(20));
+BENCHMARK_CAPTURE(bench_fb_pre_hashed, 20_num_fts, get_x_numerical_fts(20), "false");
+BENCHMARK_CAPTURE(bench_fb_no_hash, 20_num_fts, get_x_numerical_fts(20));
+BENCHMARK_CAPTURE(bench_cache_io_buf, 20_num_fts, get_x_numerical_fts(20));
+BENCHMARK_CAPTURE(bench_text_io_buf, 20_num_fts, get_x_numerical_fts(20));
+BENCHMARK_CAPTURE(bench_fb_no_hash_io_buf, 20_num_fts, get_x_numerical_fts(20));
+BENCHMARK_CAPTURE(bench_fb_pre_hashed_io_buf, 20_num_fts, get_x_numerical_fts(20), "false");
 
-BENCHMARK_CAPTURE(bench_text, 40fts, get_x_numerical_fts(40));
-BENCHMARK_CAPTURE(bench_fb_pre_hashed, 40fts, get_x_numerical_fts(40), "false");
-BENCHMARK_CAPTURE(bench_cache_io_buf, 40fts, get_x_numerical_fts(40));
-BENCHMARK_CAPTURE(bench_text_io_buf, 40fts, get_x_numerical_fts(40));
-BENCHMARK_CAPTURE(bench_fb_pre_hashed_io_buf, 40fts, get_x_numerical_fts(40), "false");
+BENCHMARK_CAPTURE(bench_text, 40_num_fts, get_x_numerical_fts(40));
+BENCHMARK_CAPTURE(bench_fb_pre_hashed, 40_num_fts, get_x_numerical_fts(40), "false");
+BENCHMARK_CAPTURE(bench_fb_no_hash, 40_num_fts, get_x_numerical_fts(40));
+BENCHMARK_CAPTURE(bench_cache_io_buf, 40_num_fts, get_x_numerical_fts(40));
+BENCHMARK_CAPTURE(bench_text_io_buf, 40_num_fts, get_x_numerical_fts(40));
+BENCHMARK_CAPTURE(bench_fb_no_hash_io_buf, 40_num_fts, get_x_numerical_fts(40));
+BENCHMARK_CAPTURE(bench_fb_pre_hashed_io_buf, 40_num_fts, get_x_numerical_fts(40), "false");
 
-BENCHMARK_CAPTURE(bench_text, 60fts, get_x_numerical_fts(60));
-BENCHMARK_CAPTURE(bench_fb_pre_hashed, 60fts, get_x_numerical_fts(60), "false");
-BENCHMARK_CAPTURE(bench_cache_io_buf, 60fts, get_x_numerical_fts(60));
-BENCHMARK_CAPTURE(bench_text_io_buf, 60fts, get_x_numerical_fts(60));
-BENCHMARK_CAPTURE(bench_fb_pre_hashed_io_buf, 60fts, get_x_numerical_fts(60), "false");
+BENCHMARK_CAPTURE(bench_text, 60_num_fts, get_x_numerical_fts(60));
+BENCHMARK_CAPTURE(bench_fb_pre_hashed, 60_num_fts, get_x_numerical_fts(60), "false");
+BENCHMARK_CAPTURE(bench_fb_no_hash, 60_num_fts, get_x_numerical_fts(60));
+BENCHMARK_CAPTURE(bench_cache_io_buf, 60_num_fts, get_x_numerical_fts(60));
+BENCHMARK_CAPTURE(bench_text_io_buf, 60_num_fts, get_x_numerical_fts(60));
+BENCHMARK_CAPTURE(bench_fb_no_hash_io_buf, 60_num_fts, get_x_numerical_fts(60));
+BENCHMARK_CAPTURE(bench_fb_pre_hashed_io_buf, 60_num_fts, get_x_numerical_fts(60), "false");
 
-BENCHMARK_CAPTURE(bench_text, 120fts, get_x_numerical_fts(120));
-BENCHMARK_CAPTURE(bench_fb_pre_hashed, 120fts, get_x_numerical_fts(120), "false");
-BENCHMARK_CAPTURE(bench_cache_io_buf, 120fts, get_x_numerical_fts(120));
-BENCHMARK_CAPTURE(bench_text_io_buf, 120fts, get_x_numerical_fts(120));
-BENCHMARK_CAPTURE(bench_fb_pre_hashed_io_buf, 120fts, get_x_numerical_fts(120), "false");
+BENCHMARK_CAPTURE(bench_text, 120_num_fts, get_x_numerical_fts(120));
+BENCHMARK_CAPTURE(bench_fb_pre_hashed, 120_num_fts, get_x_numerical_fts(120), "false");
+BENCHMARK_CAPTURE(bench_fb_no_hash, 120_num_fts, get_x_numerical_fts(120));
+BENCHMARK_CAPTURE(bench_cache_io_buf, 120_num_fts, get_x_numerical_fts(120));
+BENCHMARK_CAPTURE(bench_text_io_buf, 120_num_fts, get_x_numerical_fts(120));
+BENCHMARK_CAPTURE(bench_fb_no_hash_io_buf, 120_num_fts, get_x_numerical_fts(120));
+BENCHMARK_CAPTURE(bench_fb_pre_hashed_io_buf, 120_num_fts, get_x_numerical_fts(120), "false");
 
 // // BENCHMARK(cache_io);
 // BENCHMARK(text_buf_reader);
