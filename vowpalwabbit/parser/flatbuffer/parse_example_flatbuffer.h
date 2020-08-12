@@ -21,7 +21,6 @@ int flatbuffer_to_examples(vw* all, v_array<example*>& examples);
 class VW::parsers::flatbuffer::parser
 {
 public:
-  bool is_initialized() const;
   parser() = default;
   const VW::parsers::flatbuffer::ExampleRoot* data();
   bool parse_examples(vw* all, v_array<example*>& examples, uint8_t* buffer_pointer = nullptr);
@@ -31,9 +30,8 @@ private:
   uint8_t* _flatbuffer_pointer;
   uint32_t _example_index = 0;
   bool _active_collection = false;
-  uint64_t _c_hash;
+  uint64_t _c_hash = 0;
   flatbuffers::uoffset_t _object_size;
-  bool _initialized = false;
 
   void process_collection_item(vw* all, v_array<example*>& examples);
   bool parse(vw* all, uint8_t* buffer_pointer = nullptr);

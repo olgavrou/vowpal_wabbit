@@ -113,8 +113,6 @@ void parser::parse_example(vw* all, example* ae, const Example* eg)
   for (const auto& ns : *(eg->namespaces())) { parse_namespaces(all, ae, ns); }
 }
 
-bool parser::is_initialized() const { return _initialized; }
-
 void parser::parse_namespaces(vw* all, example* ae, const Namespace* ns)
 {
   namespace_index temp_index;
@@ -135,8 +133,6 @@ void parser::parse_namespaces(vw* all, example* ae, const Namespace* ns)
   {
     // string features
     for (const auto& feature : *(ns->featuresStr())) { parse_features_str(all, fs, feature); }
-    // for (flatbuffers::uoffset_t i = 0; i < ns->featuresStr()->Length(); i++)
-    // { parse_features_str(all, fs, (ns->featuresStr()->Get(i)), (ns->featuresNum()->Get(i))); }
   }
   else
   {
@@ -147,9 +143,7 @@ void parser::parse_namespaces(vw* all, example* ae, const Namespace* ns)
 
 void parser::parse_features_str(vw* all, features& fs, const FeatureStr* feature_str)
 {
-  uint64_t word_hash = (all->p->hasher(reinterpret_cast<const char*>(feature_str->name()->Data()),
-                            feature_str->name()->Length(), _c_hash) &
-      all->parse_mask);
+  uint64_t word_hash = (all->p->hasher(feature_str->name()->c_str(), feature_str->name()->Length(), _c_hash));
   fs.push_back(feature_str->value(), word_hash);
 }
 

@@ -38,6 +38,7 @@ auto get_x_string_fts = [](int feature_size) {
   std::stringstream ss;
   ss << "1:1:0.5 |";
   for (size_t i = 0; i < feature_size; i++) { ss << " bigfeaturename" + std::to_string(i) + ":10"; }
+  ss << " ";
   std::string s = ss.str();
   return s;
 };
@@ -73,14 +74,14 @@ flatbuffers::Offset<VW::parsers::flatbuffer::ExampleRoot> pre_hashed_sample_exam
     fts.push_back(VW::parsers::flatbuffer::FeatureNum(std::stoi(name), std::stof(value)));
   }
   namespaces.push_back(
-      VW::parsers::flatbuffer::CreateNamespaceDirect(builder, nullptr, constant_namespace, &fts, nullptr));
+      VW::parsers::flatbuffer::CreateNamespaceDirect(builder, nullptr, 0, &fts, nullptr));
   auto example = VW::parsers::flatbuffer::CreateExampleDirect(builder, &namespaces, labeltype, label);
   return VW::parsers::flatbuffer::CreateExampleRoot(
       builder, VW::parsers::flatbuffer::ExampleType_Example, example.Union());
 }
 
 std::vector<char> example_collections_flatbuffer(
-    std::string& feature_s, size_t examples_size, size_t collection_size = 0)
+    const std::string& fs, size_t examples_size, size_t collection_size = 0)
 {
   bool collection = false;
   if (collection_size > 0) { collection = true; }
@@ -92,6 +93,7 @@ std::vector<char> example_collections_flatbuffer(
 
   for (size_t i = 0; i < examples_size; i++)
   {
+    std::string feature_s = fs;
     std::vector<flatbuffers::Offset<VW::parsers::flatbuffer::Namespace>> namespaces;
     std::vector<flatbuffers::Offset<VW::parsers::flatbuffer::FeatureStr>> fts_str;
 
@@ -115,12 +117,13 @@ std::vector<char> example_collections_flatbuffer(
       size_t pos_colon = s.find(":");
       auto name = s.substr(0, pos_colon);
       auto value = s.substr(pos_colon + 1);
-      auto fb_string = builder.CreateSharedString(name);
-      fts_str.push_back(VW::parsers::flatbuffer::CreateFeatureStr(builder, fb_string, std::stof(value)));
+      auto flats = builder.CreateSharedString(name);
+      fts_str.push_back(VW::parsers::flatbuffer::CreateFeatureStr(builder, flats, std::stof(value)));
     }
     namespaces.push_back(
-        VW::parsers::flatbuffer::CreateNamespaceDirect(builder, nullptr, constant_namespace, nullptr, &fts_str));
-    auto flat_example = VW::parsers::flatbuffer::CreateExampleDirect(builder, &namespaces, labeltype, label);
+        VW::parsers::flatbuffer::CreateNamespaceDirect(builder, nullptr, 0, nullptr, &fts_str));
+    auto fv = builder.CreateVector(namespaces);
+    auto flat_example = VW::parsers::flatbuffer::CreateExample(builder, fv, labeltype, label);
     if (collection)
     {
       examplecollection.push_back(flat_example);
@@ -133,8 +136,8 @@ std::vector<char> example_collections_flatbuffer(
         builder.FinishSizePrefixed(root);
 
         uint8_t* buf = builder.GetBufferPointer();
-        int size = builder.GetSize();
-        std::copy(buf, buf + size, std::back_inserter(final_data));
+        auto size = builder.GetSize();
+        std::copy(reinterpret_cast<char*>(buf), reinterpret_cast<char*>(buf + size), std::back_inserter(final_data));
         builder.Clear();
         examplecollection.clear();
         collection_count = 0;
@@ -147,10 +150,24 @@ std::vector<char> example_collections_flatbuffer(
       builder.FinishSizePrefixed(root);
 
       uint8_t* buf = builder.GetBufferPointer();
-      int size = builder.GetSize();
-      std::copy(buf, buf + size, std::back_inserter(final_data));
+      auto size = builder.GetSize();
+      std::copy(reinterpret_cast<char*>(buf), reinterpret_cast<char*>(buf + size), std::back_inserter(final_data));
       builder.Clear();
     }
+  }
+  if (examplecollection.size() > 0)
+  {
+    auto egcollection = VW::parsers::flatbuffer::CreateExampleCollectionDirect(builder, &examplecollection);
+    auto root =
+        CreateExampleRoot(builder, VW::parsers::flatbuffer::ExampleType_ExampleCollection, egcollection.Union());
+    builder.FinishSizePrefixed(root);
+
+    uint8_t* buf = builder.GetBufferPointer();
+    auto size = builder.GetSize();
+    std::copy(reinterpret_cast<char*>(buf), reinterpret_cast<char*>(buf + size), std::back_inserter(final_data));
+    builder.Clear();
+    examplecollection.clear();
+    collection_count = 0;
   }
   return final_data;
 }
@@ -181,11 +198,11 @@ flatbuffers::Offset<VW::parsers::flatbuffer::ExampleRoot> sample_example_flatbuf
     size_t pos_colon = s.find(":");
     auto name = s.substr(0, pos_colon);
     auto value = s.substr(pos_colon + 1);
-    auto fb_string = builder.CreateSharedString(name);
-    fts_str.push_back(VW::parsers::flatbuffer::CreateFeatureStr(builder, fb_string, std::stof(value)));
+    auto flats = builder.CreateSharedString(name);
+    fts_str.push_back(VW::parsers::flatbuffer::CreateFeatureStr(builder, flats, std::stof(value)));
   }
   namespaces.push_back(
-      VW::parsers::flatbuffer::CreateNamespaceDirect(builder, nullptr, constant_namespace, nullptr, &fts_str));
+      VW::parsers::flatbuffer::CreateNamespaceDirect(builder, nullptr, 0, nullptr, &fts_str));
   auto example = VW::parsers::flatbuffer::CreateExampleDirect(builder, &namespaces, labeltype, label);
   return VW::parsers::flatbuffer::CreateExampleRoot(
       builder, VW::parsers::flatbuffer::ExampleType_Example, example.Union());
@@ -199,6 +216,7 @@ void create_input_files_in_all_formats(const std::string& es, std::string& prefi
   std::string fb_file_no_hash = filename + "_" + std::to_string(collection_size) + "_no_hash.fb";
   std::string cache_file = txt_file + ".cache";
   size_t examples = 10000;
+  std::string example_string = es;
   // just create the txt file
   std::ofstream tf(txt_file);
   for (size_t i = 0; i < examples; i++) { tf << es << std::endl; }
@@ -221,12 +239,15 @@ void create_input_files_in_all_formats(const std::string& es, std::string& prefi
   to_flat converter;
   converter.output_flatbuffer_name = fb_file;
   converter.collection_size = collection_size;
-  converter.collection = true;
+  if (collection_size > 0) { converter.collection = true; }
+  else
+  {
+    converter.collection = false;
+  }
   VW::start_parser(*vw);
   converter.convert_txt_to_flat(*vw);
   VW::end_parser(*vw);
 
-  std::string example_string = es;
   auto buf = example_collections_flatbuffer(example_string, examples, collection_size);
   std::ofstream outfile;
   outfile.open(fb_file_no_hash, std::ios::binary | std::ios::out);
@@ -275,10 +296,7 @@ static void test_flatbuffer(benchmark::State& state, ExtraArgs&&... extra_args)
 
   std::fstream filestream;
   filestream.open(fb_file);
-  if (!filestream.is_open())
-  {
-    throw std::logic_error("Can not open file: " + fb_file);
-  }
+  if (!filestream.is_open()) { throw std::logic_error("Can not open file: " + fb_file); }
   filestream.close();
 
   for (auto _ : state)
@@ -288,6 +306,7 @@ static void test_flatbuffer(benchmark::State& state, ExtraArgs&&... extra_args)
     auto examples = v_init<example*>();
     examples.push_back(&VW::get_unused_example(all));
     while (all->p->reader(all, examples)) { VW::empty_example(*all, *examples[0]); }
+    VW::finish_example(*all, *examples[0]);
     examples.delete_v();
     benchmark::ClobberMemory();
     VW::finish(*all);
@@ -302,15 +321,16 @@ static void test_text(benchmark::State& state, ExtraArgs&&... extra_args)
   auto prefix = res[1];
   // create_input_files_in_all_formats(example_string, prefix);
   Setup::PerformSetup();
+  std::string text_file = ".temp_test_" + prefix + ".txt";
 
   for (auto _ : state)
   {
-    auto all =
-        VW::initialize("--no_stdin --cb 2 --quiet -d .temp_test_" + prefix + ".txt", nullptr, false, nullptr, nullptr);
+    auto all = VW::initialize("--no_stdin --cb 2 --quiet -d " + text_file, nullptr, false, nullptr, nullptr);
 
     auto examples = v_init<example*>();
     examples.push_back(&VW::get_unused_example(all));
     while (all->p->reader(all, examples)) { VW::empty_example(*all, *examples[0]); }
+    VW::finish_example(*all, *examples[0]);
     examples.delete_v();
     benchmark::ClobberMemory();
     VW::finish(*all);
@@ -325,15 +345,16 @@ static void test_cache(benchmark::State& state, ExtraArgs&&... extra_args)
   auto prefix = res[1];
   // create_input_files_in_all_formats(example_string, prefix);
   Setup::PerformSetup();
+  std::string cache_file = ".temp_test_" + prefix + ".txt.cache";
 
   for (auto _ : state)
   {
-    auto all = VW::initialize(
-        "--no_stdin --cb 2 --quiet --cache_file .temp_test_" + prefix + ".txt.cache", nullptr, false, nullptr, nullptr);
+    auto all = VW::initialize("--no_stdin --cb 2 --quiet --cache_file " + cache_file, nullptr, false, nullptr, nullptr);
 
     auto examples = v_init<example*>();
     examples.push_back(&VW::get_unused_example(all));
     while (all->p->reader(all, examples)) { VW::empty_example(*all, *examples[0]); }
+    VW::finish_example(*all, *examples[0]);
     examples.delete_v();
     benchmark::ClobberMemory();
     VW::finish(*all);
@@ -734,36 +755,36 @@ BENCHMARK_CAPTURE(test_text, 20_string_fts, get_x_string_fts(20), "20");
 BENCHMARK_CAPTURE(test_flatbuffer, 20_string_fts_no_hash, get_x_string_fts(20), "20", "0", "nohash");
 BENCHMARK_CAPTURE(test_flatbuffer, 20_string_fts_no_hash_500, get_x_string_fts(20), "20", "500", "nohash");
 BENCHMARK_CAPTURE(test_flatbuffer, 20_string_fts_no_hash_1000, get_x_string_fts(20), "20", "1000", "nohash");
-BENCHMARK_CAPTURE(test_flatbuffer, 20_string_fts, get_x_string_fts(20), "20", "0");
-BENCHMARK_CAPTURE(test_flatbuffer, 20_string_fts_500, get_x_string_fts(20), "20", "500");
-BENCHMARK_CAPTURE(test_flatbuffer, 20_string_fts_1000, get_x_string_fts(20), "20", "1000");
+BENCHMARK_CAPTURE(test_flatbuffer, 20_string_fts_pre_hashed, get_x_string_fts(20), "20", "0");
+BENCHMARK_CAPTURE(test_flatbuffer, 20_string_fts_pre_hashed_500, get_x_string_fts(20), "20", "500");
+BENCHMARK_CAPTURE(test_flatbuffer, 20_string_fts_pre_hashed_1000, get_x_string_fts(20), "20", "1000");
 
 BENCHMARK_CAPTURE(test_cache, 40_string_fts, get_x_string_fts(40), "40");
 BENCHMARK_CAPTURE(test_text, 40_string_fts, get_x_string_fts(40), "40");
 BENCHMARK_CAPTURE(test_flatbuffer, 40_string_fts_no_hash, get_x_string_fts(40), "40", "0", "nohash");
 BENCHMARK_CAPTURE(test_flatbuffer, 40_string_fts_no_hash_500, get_x_string_fts(40), "40", "500", "nohash");
 BENCHMARK_CAPTURE(test_flatbuffer, 40_string_fts_no_hash_1000, get_x_string_fts(40), "40", "1000", "nohash");
-BENCHMARK_CAPTURE(test_flatbuffer, 40_string_fts, get_x_string_fts(40), "40", "0");
-BENCHMARK_CAPTURE(test_flatbuffer, 40_string_fts_500, get_x_string_fts(40), "40", "500");
-BENCHMARK_CAPTURE(test_flatbuffer, 40_string_fts_1000, get_x_string_fts(40), "40", "1000");
+BENCHMARK_CAPTURE(test_flatbuffer, 40_string_fts_pre_hashed, get_x_string_fts(40), "40", "0");
+BENCHMARK_CAPTURE(test_flatbuffer, 40_string_fts_pre_hashed_500, get_x_string_fts(40), "40", "500");
+BENCHMARK_CAPTURE(test_flatbuffer, 40_string_fts_pre_hashed_1000, get_x_string_fts(40), "40", "1000");
 
 BENCHMARK_CAPTURE(test_cache, 60_string_fts, get_x_string_fts(60), "60");
 BENCHMARK_CAPTURE(test_text, 60_string_fts, get_x_string_fts(60), "60");
 BENCHMARK_CAPTURE(test_flatbuffer, 60_string_fts_no_hash, get_x_string_fts(60), "60", "0", "nohash");
 BENCHMARK_CAPTURE(test_flatbuffer, 60_string_fts_no_hash_500, get_x_string_fts(60), "60", "500", "nohash");
 BENCHMARK_CAPTURE(test_flatbuffer, 60_string_fts_no_hash_1000, get_x_string_fts(60), "60", "1000", "nohash");
-BENCHMARK_CAPTURE(test_flatbuffer, 60_string_fts, get_x_string_fts(60), "60", "0");
-BENCHMARK_CAPTURE(test_flatbuffer, 60_string_fts_500, get_x_string_fts(60), "60", "500");
-BENCHMARK_CAPTURE(test_flatbuffer, 60_string_fts_1000, get_x_string_fts(60), "60", "1000");
+BENCHMARK_CAPTURE(test_flatbuffer, 60_string_fts_pre_hashed, get_x_string_fts(60), "60", "0");
+BENCHMARK_CAPTURE(test_flatbuffer, 60_string_fts_pre_hashed_500, get_x_string_fts(60), "60", "500");
+BENCHMARK_CAPTURE(test_flatbuffer, 60_string_fts_pre_hashed_1000, get_x_string_fts(60), "60", "1000");
 
 BENCHMARK_CAPTURE(test_cache, 120_string_fts, get_x_string_fts(120), "120");
 BENCHMARK_CAPTURE(test_text, 120_string_fts, get_x_string_fts(120), "120");
 BENCHMARK_CAPTURE(test_flatbuffer, 120_string_fts_no_hash, get_x_string_fts(120), "120", "0", "nohash");
 BENCHMARK_CAPTURE(test_flatbuffer, 120_string_fts_no_hash_500, get_x_string_fts(120), "120", "500", "nohash");
 BENCHMARK_CAPTURE(test_flatbuffer, 120_string_fts_no_hash_1000, get_x_string_fts(120), "120", "1000", "nohash");
-BENCHMARK_CAPTURE(test_flatbuffer, 120_string_fts, get_x_string_fts(120), "120", "0");
-BENCHMARK_CAPTURE(test_flatbuffer, 120_string_fts_500, get_x_string_fts(120), "120", "500");
-BENCHMARK_CAPTURE(test_flatbuffer, 120_string_fts_1000, get_x_string_fts(120), "120", "1000");
+BENCHMARK_CAPTURE(test_flatbuffer, 120_string_fts_pre_hashed, get_x_string_fts(120), "120", "0");
+BENCHMARK_CAPTURE(test_flatbuffer, 120_string_fts_pre_hashed_500, get_x_string_fts(120), "120", "500");
+BENCHMARK_CAPTURE(test_flatbuffer, 120_string_fts_pre_hashed_1000, get_x_string_fts(120), "120", "1000");
 
 BENCHMARK_CAPTURE(bench_text, 20_string_fts, get_x_string_fts(20));
 BENCHMARK_CAPTURE(bench_fb_no_hash, 20_string_fts, get_x_string_fts(20));
@@ -798,32 +819,32 @@ BENCHMARK_CAPTURE(bench_fb_no_hash_io_buf, 120_string_fts, get_x_string_fts(120)
 BENCHMARK_CAPTURE(bench_fb_pre_hashed_io_buf, 120_string_fts, get_x_string_fts(120), "true");
 
 BENCHMARK_CAPTURE(bench_text, 20_num_fts, get_x_numerical_fts(20));
-BENCHMARK_CAPTURE(bench_fb_pre_hashed, 20_num_fts, get_x_numerical_fts(20), "false");
 BENCHMARK_CAPTURE(bench_fb_no_hash, 20_num_fts, get_x_numerical_fts(20));
+BENCHMARK_CAPTURE(bench_fb_pre_hashed, 20_num_fts, get_x_numerical_fts(20), "false");
 BENCHMARK_CAPTURE(bench_cache_io_buf, 20_num_fts, get_x_numerical_fts(20));
 BENCHMARK_CAPTURE(bench_text_io_buf, 20_num_fts, get_x_numerical_fts(20));
 BENCHMARK_CAPTURE(bench_fb_no_hash_io_buf, 20_num_fts, get_x_numerical_fts(20));
 BENCHMARK_CAPTURE(bench_fb_pre_hashed_io_buf, 20_num_fts, get_x_numerical_fts(20), "false");
 
 BENCHMARK_CAPTURE(bench_text, 40_num_fts, get_x_numerical_fts(40));
-BENCHMARK_CAPTURE(bench_fb_pre_hashed, 40_num_fts, get_x_numerical_fts(40), "false");
 BENCHMARK_CAPTURE(bench_fb_no_hash, 40_num_fts, get_x_numerical_fts(40));
+BENCHMARK_CAPTURE(bench_fb_pre_hashed, 40_num_fts, get_x_numerical_fts(40), "false");
 BENCHMARK_CAPTURE(bench_cache_io_buf, 40_num_fts, get_x_numerical_fts(40));
 BENCHMARK_CAPTURE(bench_text_io_buf, 40_num_fts, get_x_numerical_fts(40));
 BENCHMARK_CAPTURE(bench_fb_no_hash_io_buf, 40_num_fts, get_x_numerical_fts(40));
 BENCHMARK_CAPTURE(bench_fb_pre_hashed_io_buf, 40_num_fts, get_x_numerical_fts(40), "false");
 
 BENCHMARK_CAPTURE(bench_text, 60_num_fts, get_x_numerical_fts(60));
-BENCHMARK_CAPTURE(bench_fb_pre_hashed, 60_num_fts, get_x_numerical_fts(60), "false");
 BENCHMARK_CAPTURE(bench_fb_no_hash, 60_num_fts, get_x_numerical_fts(60));
+BENCHMARK_CAPTURE(bench_fb_pre_hashed, 60_num_fts, get_x_numerical_fts(60), "false");
 BENCHMARK_CAPTURE(bench_cache_io_buf, 60_num_fts, get_x_numerical_fts(60));
 BENCHMARK_CAPTURE(bench_text_io_buf, 60_num_fts, get_x_numerical_fts(60));
 BENCHMARK_CAPTURE(bench_fb_no_hash_io_buf, 60_num_fts, get_x_numerical_fts(60));
 BENCHMARK_CAPTURE(bench_fb_pre_hashed_io_buf, 60_num_fts, get_x_numerical_fts(60), "false");
 
 BENCHMARK_CAPTURE(bench_text, 120_num_fts, get_x_numerical_fts(120));
-BENCHMARK_CAPTURE(bench_fb_pre_hashed, 120_num_fts, get_x_numerical_fts(120), "false");
 BENCHMARK_CAPTURE(bench_fb_no_hash, 120_num_fts, get_x_numerical_fts(120));
+BENCHMARK_CAPTURE(bench_fb_pre_hashed, 120_num_fts, get_x_numerical_fts(120), "false");
 BENCHMARK_CAPTURE(bench_cache_io_buf, 120_num_fts, get_x_numerical_fts(120));
 BENCHMARK_CAPTURE(bench_text_io_buf, 120_num_fts, get_x_numerical_fts(120));
 BENCHMARK_CAPTURE(bench_fb_no_hash_io_buf, 120_num_fts, get_x_numerical_fts(120));
