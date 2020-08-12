@@ -198,10 +198,6 @@ void create_input_files_in_all_formats(const std::string& es, std::string& prefi
   std::string fb_file = filename + "_" + std::to_string(collection_size) + ".fb";
   std::string fb_file_no_hash = filename + "_" + std::to_string(collection_size) + "_no_hash.fb";
   std::string cache_file = txt_file + ".cache";
-  std::remove(txt_file.c_str());
-  std::remove(fb_file.c_str());
-  std::remove(cache_file.c_str());
-  std::remove(fb_file_no_hash.c_str());
   size_t examples = 10000;
   // just create the txt file
   std::ofstream tf(txt_file);
@@ -235,6 +231,7 @@ void create_input_files_in_all_formats(const std::string& es, std::string& prefi
   std::ofstream outfile;
   outfile.open(fb_file_no_hash, std::ios::binary | std::ios::out);
   outfile.write(buf.data(), buf.size());
+  outfile.close();
 }
 
 class Setup
@@ -274,8 +271,15 @@ static void test_flatbuffer(benchmark::State& state, ExtraArgs&&... extra_args)
   std::string fb_file = ".temp_test_" + prefix + "_" + std::to_string(collection_size) + ".fb";
   if (sizeof...(extra_args) == 4)
   { fb_file = ".temp_test_" + prefix + "_" + std::to_string(collection_size) + "_no_hash.fb"; }
-  // create_input_files_in_all_formats(example_string, prefix, collection_size);
   Setup::PerformSetup();
+
+  std::fstream filestream;
+  filestream.open(fb_file);
+  if (!filestream.is_open())
+  {
+    throw std::logic_error("Can not open file: " + fb_file);
+  }
+  filestream.close();
 
   for (auto _ : state)
   {
@@ -286,6 +290,7 @@ static void test_flatbuffer(benchmark::State& state, ExtraArgs&&... extra_args)
     while (all->p->reader(all, examples)) { VW::empty_example(*all, *examples[0]); }
     examples.delete_v();
     benchmark::ClobberMemory();
+    VW::finish(*all);
   }
 }
 
@@ -308,6 +313,7 @@ static void test_text(benchmark::State& state, ExtraArgs&&... extra_args)
     while (all->p->reader(all, examples)) { VW::empty_example(*all, *examples[0]); }
     examples.delete_v();
     benchmark::ClobberMemory();
+    VW::finish(*all);
   }
 }
 
@@ -330,6 +336,7 @@ static void test_cache(benchmark::State& state, ExtraArgs&&... extra_args)
     while (all->p->reader(all, examples)) { VW::empty_example(*all, *examples[0]); }
     examples.delete_v();
     benchmark::ClobberMemory();
+    VW::finish(*all);
   }
 }
 
