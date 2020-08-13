@@ -7,11 +7,6 @@
 #include "parser/flatbuffer/parse_example_flatbuffer.h"
 #include "parser/flatbuffer/generated/example_generated.h"
 
-// #include <boost/test/unit_test.hpp>
-// #include <boost/test/test_tools.hpp>
-
-// #include "test_common.h"
-
 #include <vector>
 #include <sstream>
 #include <string>
@@ -36,26 +31,16 @@ auto get_x_numerical_fts = [](int feature_size) {
 
 auto get_x_string_fts = [](int feature_size) {
   std::stringstream ss;
-  ss << "1:1:0.5 |";
-  for (size_t i = 0; i < feature_size; i++) { ss << " bigfeaturename" + std::to_string(i) + ":10"; }
-  ss << " ";
+  ss << "1:1:0.5 | ";
+  for (size_t i = 0; i < feature_size; i++) { ss << "bigfeaturename" + std::to_string(i) + ":10 "; }
   std::string s = ss.str();
   return s;
 };
 
-flatbuffers::Offset<VW::parsers::flatbuffer::ExampleRoot> pre_hashed_sample_example_flatbuffer(
-    flatbuffers::FlatBufferBuilder& builder, std::string& feature_s)
+void parse_fts_str(flatbuffers::FlatBufferBuilder& builder, std::string feature_s,
+    std::vector<VW::parsers::flatbuffer::FeatureNum>* num_fts = nullptr,
+    std::vector<flatbuffers::Offset<VW::parsers::flatbuffer::FeatureStr>>* str_fts = nullptr)
 {
-  std::vector<flatbuffers::Offset<VW::parsers::flatbuffer::Namespace>> namespaces;
-  std::vector<VW::parsers::flatbuffer::FeatureNum> fts;
-
-  std::vector<VW::parsers::flatbuffer::CB_class> costs;
-  costs.push_back(VW::parsers::flatbuffer::CB_class(1, 1, 0.5, 0));
-  auto label = VW::parsers::flatbuffer::CreateCBLabelDirect(builder, 1, &costs).Union();
-  auto labeltype = VW::parsers::flatbuffer::Label_CBLabel;
-
-  std::vector<flatbuffers::Offset<VW::parsers::flatbuffer::Example>> examplecollection;
-
   std::string ps = "|";
   std::string space = " ";
   size_t pipe = feature_s.find("|");
@@ -71,13 +56,49 @@ flatbuffers::Offset<VW::parsers::flatbuffer::ExampleRoot> pre_hashed_sample_exam
     size_t pos_colon = s.find(":");
     auto name = s.substr(0, pos_colon);
     auto value = s.substr(pos_colon + 1);
-    fts.push_back(VW::parsers::flatbuffer::FeatureNum(std::stoi(name), std::stof(value)));
+    if (num_fts) { num_fts->push_back(VW::parsers::flatbuffer::FeatureNum(std::stoi(name), std::stof(value))); }
+    else if (str_fts)
+    {
+      auto flats = builder.CreateSharedString(name);
+      str_fts->push_back(VW::parsers::flatbuffer::CreateFeatureStr(builder, flats, std::stof(value)));
+    }
   }
-  namespaces.push_back(
-      VW::parsers::flatbuffer::CreateNamespaceDirect(builder, nullptr, 0, &fts, nullptr));
+}
+
+flatbuffers::Offset<VW::parsers::flatbuffer::ExampleRoot> pre_hashed_sample_example_flatbuffer(
+    flatbuffers::FlatBufferBuilder& builder, std::string feature_s)
+{
+  std::vector<flatbuffers::Offset<VW::parsers::flatbuffer::Namespace>> namespaces;
+  std::vector<VW::parsers::flatbuffer::FeatureNum> fts;
+
+  std::vector<VW::parsers::flatbuffer::CB_class> costs;
+  costs.push_back(VW::parsers::flatbuffer::CB_class(1, 1, 0.5, 0));
+  auto label = VW::parsers::flatbuffer::CreateCBLabelDirect(builder, 1, &costs).Union();
+  auto labeltype = VW::parsers::flatbuffer::Label_CBLabel;
+
+  std::vector<flatbuffers::Offset<VW::parsers::flatbuffer::Example>> examplecollection;
+
+  parse_fts_str(builder, feature_s, &fts);
+  namespaces.push_back(VW::parsers::flatbuffer::CreateNamespaceDirect(builder, nullptr, 0, &fts, nullptr));
   auto example = VW::parsers::flatbuffer::CreateExampleDirect(builder, &namespaces, labeltype, label);
   return VW::parsers::flatbuffer::CreateExampleRoot(
       builder, VW::parsers::flatbuffer::ExampleType_Example, example.Union());
+}
+
+flatbuffers::Offset<VW::parsers::flatbuffer::Example> sample_example_flatbuffer(
+    flatbuffers::FlatBufferBuilder& builder, std::string feature_s)
+{
+  std::vector<flatbuffers::Offset<VW::parsers::flatbuffer::Namespace>> namespaces;
+  std::vector<flatbuffers::Offset<VW::parsers::flatbuffer::FeatureStr>> fts_str;
+
+  std::vector<VW::parsers::flatbuffer::CB_class> costs;
+  costs.push_back(VW::parsers::flatbuffer::CB_class(1, 1, 0.5, 0));
+  auto label = VW::parsers::flatbuffer::CreateCBLabelDirect(builder, 1, &costs).Union();
+  auto labeltype = VW::parsers::flatbuffer::Label_CBLabel;
+
+  parse_fts_str(builder, feature_s, nullptr, &fts_str);
+  namespaces.push_back(VW::parsers::flatbuffer::CreateNamespaceDirect(builder, nullptr, 0, nullptr, &fts_str));
+  return VW::parsers::flatbuffer::CreateExampleDirect(builder, &namespaces, labeltype, label);
 }
 
 std::vector<char> example_collections_flatbuffer(
@@ -93,37 +114,7 @@ std::vector<char> example_collections_flatbuffer(
 
   for (size_t i = 0; i < examples_size; i++)
   {
-    std::string feature_s = fs;
-    std::vector<flatbuffers::Offset<VW::parsers::flatbuffer::Namespace>> namespaces;
-    std::vector<flatbuffers::Offset<VW::parsers::flatbuffer::FeatureStr>> fts_str;
-
-    std::vector<VW::parsers::flatbuffer::CB_class> costs;
-    costs.push_back(VW::parsers::flatbuffer::CB_class(1, 1, 0.5, 0));
-    auto label = VW::parsers::flatbuffer::CreateCBLabelDirect(builder, 1, &costs).Union();
-    auto labeltype = VW::parsers::flatbuffer::Label_CBLabel;
-
-    std::string ps = "|";
-    std::string space = " ";
-    size_t pipe = feature_s.find("|");
-    feature_s.erase(0, pipe + ps.length() + space.length());
-
-    size_t pos = 0;
-    std::string delimiter(" ");
-    while ((pos = feature_s.find(delimiter)) != std::string::npos)
-    {
-      auto s = feature_s.substr(0, pos);
-      feature_s.erase(0, pos + delimiter.length());
-      // split at :
-      size_t pos_colon = s.find(":");
-      auto name = s.substr(0, pos_colon);
-      auto value = s.substr(pos_colon + 1);
-      auto flats = builder.CreateSharedString(name);
-      fts_str.push_back(VW::parsers::flatbuffer::CreateFeatureStr(builder, flats, std::stof(value)));
-    }
-    namespaces.push_back(
-        VW::parsers::flatbuffer::CreateNamespaceDirect(builder, nullptr, 0, nullptr, &fts_str));
-    auto fv = builder.CreateVector(namespaces);
-    auto flat_example = VW::parsers::flatbuffer::CreateExample(builder, fv, labeltype, label);
+    auto flat_example = sample_example_flatbuffer(builder, fs);
     if (collection)
     {
       examplecollection.push_back(flat_example);
@@ -172,40 +163,40 @@ std::vector<char> example_collections_flatbuffer(
   return final_data;
 }
 
-flatbuffers::Offset<VW::parsers::flatbuffer::ExampleRoot> sample_example_flatbuffer(
-    flatbuffers::FlatBufferBuilder& builder, std::string& feature_s)
+void call_flat_converter(vw* vw, const std::string& outfile, size_t collection_size = 0)
 {
-  std::vector<flatbuffers::Offset<VW::parsers::flatbuffer::Namespace>> namespaces;
-  std::vector<flatbuffers::Offset<VW::parsers::flatbuffer::FeatureStr>> fts_str;
+  to_flat converter;
+  converter.output_flatbuffer_name = outfile;
+  converter.collection_size = collection_size;
+  if (collection_size > 0) { converter.collection = true; }
 
-  std::vector<VW::parsers::flatbuffer::CB_class> costs;
-  costs.push_back(VW::parsers::flatbuffer::CB_class(1, 1, 0.5, 0));
-  auto label = VW::parsers::flatbuffer::CreateCBLabelDirect(builder, 1, &costs).Union();
-  auto labeltype = VW::parsers::flatbuffer::Label_CBLabel;
+  VW::start_parser(*vw);
+  converter.convert_txt_to_flat(*vw);
+  VW::end_parser(*vw);
+}
 
-  std::string ps = "|";
-  std::string space = " ";
-  size_t pipe = feature_s.find("|");
-  feature_s.erase(0, pipe + ps.length() + space.length());
+std::shared_ptr<std::vector<char>> get_pre_hashed_fb_buffer(const std::string& es)
+{
+  std::string out_name = ".out.fb";
+  auto vw = VW::initialize("--cb 2 --quiet");
+  auto buffer = std::make_shared<std::vector<char>>();
 
-  size_t pos = 0;
-  std::string delimiter(" ");
-  while ((pos = feature_s.find(delimiter)) != std::string::npos)
-  {
-    auto s = feature_s.substr(0, pos);
-    feature_s.erase(0, pos + delimiter.length());
-    // split at :
-    size_t pos_colon = s.find(":");
-    auto name = s.substr(0, pos_colon);
-    auto value = s.substr(pos_colon + 1);
-    auto flats = builder.CreateSharedString(name);
-    fts_str.push_back(VW::parsers::flatbuffer::CreateFeatureStr(builder, flats, std::stof(value)));
-  }
-  namespaces.push_back(
-      VW::parsers::flatbuffer::CreateNamespaceDirect(builder, nullptr, 0, nullptr, &fts_str));
-  auto example = VW::parsers::flatbuffer::CreateExampleDirect(builder, &namespaces, labeltype, label);
-  return VW::parsers::flatbuffer::CreateExampleRoot(
-      builder, VW::parsers::flatbuffer::ExampleType_Example, example.Union());
+  io_buf reader_view_of_buffer;
+  reader_view_of_buffer.add_file(VW::io::create_buffer_view(es.data(), es.size()));
+  vw->p->input = &reader_view_of_buffer;
+
+  call_flat_converter(vw, out_name);
+
+  std::ifstream infile;
+  infile.open(out_name, std::ios::binary | std::ios::in);
+  infile.seekg(0, std::ios::end);
+  int length = infile.tellg();
+  infile.seekg(0, std::ios::beg);
+  buffer->resize(length);
+  infile.read(buffer->data(), length);
+  infile.close();
+
+  return buffer;
 }
 
 void create_input_files_in_all_formats(const std::string& es, std::string& prefix, size_t collection_size = 0)
@@ -235,18 +226,7 @@ void create_input_files_in_all_formats(const std::string& es, std::string& prefi
 
   // transform to fb
   vw = VW::initialize(txt_file + " --cb 2 --quiet");
-
-  to_flat converter;
-  converter.output_flatbuffer_name = fb_file;
-  converter.collection_size = collection_size;
-  if (collection_size > 0) { converter.collection = true; }
-  else
-  {
-    converter.collection = false;
-  }
-  VW::start_parser(*vw);
-  converter.convert_txt_to_flat(*vw);
-  VW::end_parser(*vw);
+  call_flat_converter(vw, fb_file);
 
   auto buf = example_collections_flatbuffer(example_string, examples, collection_size);
   std::ofstream outfile;
@@ -279,7 +259,7 @@ class Setup
   }
 
 public:
-  static void PerformSetup() { static Setup setup; }
+  static void perform_setup() { static Setup setup; }
 };
 
 template <class... ExtraArgs>
@@ -292,7 +272,7 @@ static void test_flatbuffer(benchmark::State& state, ExtraArgs&&... extra_args)
   std::string fb_file = ".temp_test_" + prefix + "_" + std::to_string(collection_size) + ".fb";
   if (sizeof...(extra_args) == 4)
   { fb_file = ".temp_test_" + prefix + "_" + std::to_string(collection_size) + "_no_hash.fb"; }
-  Setup::PerformSetup();
+  Setup::perform_setup();
 
   std::fstream filestream;
   filestream.open(fb_file);
@@ -319,8 +299,7 @@ static void test_text(benchmark::State& state, ExtraArgs&&... extra_args)
   std::string res[sizeof...(extra_args)] = {extra_args...};
   auto example_string = res[0];
   auto prefix = res[1];
-  // create_input_files_in_all_formats(example_string, prefix);
-  Setup::PerformSetup();
+  Setup::perform_setup();
   std::string text_file = ".temp_test_" + prefix + ".txt";
 
   for (auto _ : state)
@@ -343,8 +322,7 @@ static void test_cache(benchmark::State& state, ExtraArgs&&... extra_args)
   std::string res[sizeof...(extra_args)] = {extra_args...};
   auto example_string = res[0];
   auto prefix = res[1];
-  // create_input_files_in_all_formats(example_string, prefix);
-  Setup::PerformSetup();
+  Setup::perform_setup();
   std::string cache_file = ".temp_test_" + prefix + ".txt.cache";
 
   for (auto _ : state)
@@ -383,34 +361,6 @@ static void bench_text(benchmark::State& state, ExtraArgs&&... extra_args)
   examples.delete_v();
 }
 
-std::shared_ptr<std::vector<char>> get_pre_hashed_fb_buffer(const std::string& es)
-{
-  std::string out_name = ".out.fb";
-  auto vw = VW::initialize("--cb 2 --quiet");
-  auto buffer = std::make_shared<std::vector<char>>();
-
-  io_buf reader_view_of_buffer;
-  reader_view_of_buffer.add_file(VW::io::create_buffer_view(es.data(), es.size()));
-  vw->p->input = &reader_view_of_buffer;
-
-  to_flat converter;
-  converter.output_flatbuffer_name = out_name;
-  VW::start_parser(*vw);
-  converter.convert_txt_to_flat(*vw);
-  VW::end_parser(*vw);
-
-  std::ifstream infile;
-  infile.open(out_name, std::ios::binary | std::ios::in);
-  infile.seekg(0, std::ios::end);
-  int length = infile.tellg();
-  infile.seekg(0, std::ios::beg);
-  buffer->resize(length);
-  infile.read(buffer->data(), length);
-  infile.close();
-
-  return buffer;
-}
-
 template <class... ExtraArgs>
 static void bench_fb_no_hash(benchmark::State& state, ExtraArgs&&... extra_args)
 {
@@ -420,7 +370,9 @@ static void bench_fb_no_hash(benchmark::State& state, ExtraArgs&&... extra_args)
   auto vw = VW::initialize("--cb 2 --quiet");
 
   flatbuffers::FlatBufferBuilder builder;
-  auto ex = sample_example_flatbuffer(builder, example_string);
+  auto expl = sample_example_flatbuffer(builder, example_string);
+  auto ex =
+      VW::parsers::flatbuffer::CreateExampleRoot(builder, VW::parsers::flatbuffer::ExampleType_Example, expl.Union());
   builder.FinishSizePrefixed(ex);
 
   uint8_t* buf = builder.GetBufferPointer();
@@ -567,7 +519,9 @@ static void bench_fb_no_hash_io_buf(benchmark::State& state, ExtraArgs&&... extr
 
   auto vw = VW::initialize("--cb 2 --flatbuffer --quiet");
   flatbuffers::FlatBufferBuilder builder;
-  auto ex = sample_example_flatbuffer(builder, example_string);
+  auto expl = sample_example_flatbuffer(builder, example_string);
+  auto ex =
+      VW::parsers::flatbuffer::CreateExampleRoot(builder, VW::parsers::flatbuffer::ExampleType_Example, expl.Union());
   builder.FinishSizePrefixed(ex);
 
   uint8_t* buf = builder.GetBufferPointer();
