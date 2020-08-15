@@ -22,7 +22,7 @@ table SimpleLabel {
   weight:float;
 }
 
-struct CB_class {
+table CB_class {
   action:uint32;
   cost:float;
   probability:float;
@@ -91,7 +91,7 @@ table Slates_Label {
   probabilities:[action_score];
 }
 
-union Label {SimpleLabel, CBLabel, CCBLabel, MultiClass, MultiLabel, CB_EVAL_Label, CS_Label, no_label, Slates_Label}
+union Label {SimpleLabel, CBLabel, CB_class, CCBLabel, MultiClass, MultiLabel, CB_EVAL_Label, CS_Label, no_label, Slates_Label}
 
 table Example {
   namespaces:[Namespace];
@@ -99,11 +99,23 @@ table Example {
   tag:string;
 }
 
+table MultiExample
+{
+  namespaces:[Namespace];
+  shared:Label;
+  label:Label; // right now either cs_label or cb_class
+  /// tag?
+}
+
 table ExampleCollection {
   examples:[Example];
 }
 
-union ExampleType {Example, ExampleCollection}
+table MultiExampleCollection {
+  multi_examples:[MultiExample];
+}
+
+union ExampleType {Example, ExampleCollection, MultiExample, MultiExampleCollection}
 
 table ExampleRoot
 {

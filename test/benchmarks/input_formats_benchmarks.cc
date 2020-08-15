@@ -71,8 +71,8 @@ flatbuffers::Offset<VW::parsers::flatbuffer::ExampleRoot> pre_hashed_sample_exam
   std::vector<flatbuffers::Offset<VW::parsers::flatbuffer::Namespace>> namespaces;
   std::vector<VW::parsers::flatbuffer::FeatureNum> fts;
 
-  std::vector<VW::parsers::flatbuffer::CB_class> costs;
-  costs.push_back(VW::parsers::flatbuffer::CB_class(1, 1, 0.5, 0));
+  std::vector<flatbuffers::Offset<VW::parsers::flatbuffer::CB_class>> costs;
+  costs.push_back(VW::parsers::flatbuffer::CreateCB_class(builder, 1, 1, 0.5, 0));
   auto label = VW::parsers::flatbuffer::CreateCBLabelDirect(builder, 1, &costs).Union();
   auto labeltype = VW::parsers::flatbuffer::Label_CBLabel;
 
@@ -91,8 +91,8 @@ flatbuffers::Offset<VW::parsers::flatbuffer::Example> sample_example_flatbuffer(
   std::vector<flatbuffers::Offset<VW::parsers::flatbuffer::Namespace>> namespaces;
   std::vector<flatbuffers::Offset<VW::parsers::flatbuffer::FeatureStr>> fts_str;
 
-  std::vector<VW::parsers::flatbuffer::CB_class> costs;
-  costs.push_back(VW::parsers::flatbuffer::CB_class(1, 1, 0.5, 0));
+  std::vector<flatbuffers::Offset<VW::parsers::flatbuffer::CB_class>> costs;
+  costs.push_back(VW::parsers::flatbuffer::CreateCB_class(builder, 1, 1, 0.5, 0));
   auto label = VW::parsers::flatbuffer::CreateCBLabelDirect(builder, 1, &costs).Union();
   auto labeltype = VW::parsers::flatbuffer::Label_CBLabel;
 
