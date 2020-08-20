@@ -30,16 +30,23 @@ private:
   uint8_t* _flatbuffer_pointer;
   uint32_t _example_index = 0;
   bool _active_collection = false;
+  uint32_t _multi_ex_index = 0;
+  size_t cost_count = 0;
+  bool _active_multi_ex = false;
+  const VW::parsers::flatbuffer::MultiExample* _multi_example_object = nullptr;
+  uint32_t _labeled_action = 0;
   uint64_t _c_hash = 0;
   flatbuffers::uoffset_t _object_size;
 
   void process_collection_item(vw* all, v_array<example*>& examples);
   bool parse(vw* all, uint8_t* buffer_pointer = nullptr);
+  void parse_multi_example(vw* all, example* ae, const MultiExample* eg);
   void parse_example(vw* all, example* ae, const Example* eg);
   void parse_namespaces(vw* all, example* ae, const Namespace* ns);
   void parse_features_str(vw* all, features& fs, const FeatureStr* feature_str);
   void parse_features_num(features& fs, const FeatureNum* feature);
-  void parse_flat_label(shared_data* sd, example* ae, const Example* eg);
+  void parse_flat_label(
+      shared_data* sd, example* ae, const VW::parsers::flatbuffer::Label& label_type, const void* label);
 
   void parse_simple_label(shared_data* sd, polylabel* l, const SimpleLabel* label);
   void parse_cb_label(polylabel* l, const CBLabel* label);

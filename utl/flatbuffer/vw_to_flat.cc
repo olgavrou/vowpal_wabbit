@@ -64,19 +64,13 @@ void to_flat::create_cb_label(example* v, ExampleBuilder& ex_builder)
   ex_builder.label_type = VW::parsers::flatbuffer::Label_CBLabel;
 }
 
-void to_flat::create_cb_label_multi_ex(example* v, MultiExampleBuilder& ex_builder, uint32_t multi_ex_index)
+void to_flat::create_cb_label_multi_ex(example* v, MultiExampleBuilder& ex_builder)
 {
   std::vector<flatbuffers::Offset<VW::parsers::flatbuffer::CB_class>> costs;
   for (auto const& cost : v->l.cb.costs)
   {
-    auto action = cost.action;
-    if (!CB::ec_is_example_header(*v))
-    {
-      // this example has a label, need to not which example it is
-      action = multi_ex_index;
-    }
-    costs.push_back(VW::parsers::flatbuffer::CreateCB_class(
-        _builder, action, cost.cost, cost.probability, cost.partial_prediction));
+    costs.push_back(
+        VW::parsers::flatbuffer::CreateCB_class(_builder, 0, cost.cost, cost.probability, cost.partial_prediction));
   }
   if (CB::ec_is_example_header(*v))
   {
@@ -234,6 +228,7 @@ void to_flat::convert_txt_to_flat(vw& all)
   std::vector<flatbuffers::Offset<VW::parsers::flatbuffer::Example>> example_collection;
   std::vector<flatbuffers::Offset<VW::parsers::flatbuffer::MultiExample>> multi_example_collection;
   size_t collection_count = 0;
+
   example* ae = all.p->ready_parsed_examples.pop();
   int examples = 0;
   uint32_t multi_ex_index = 0;
@@ -241,8 +236,10 @@ void to_flat::convert_txt_to_flat(vw& all)
   MultiExampleBuilder multi_ex_builder;
   ExampleBuilder ex_builder;
 
+  std::map<std::string, flatbuffers::Offset<VW::parsers::flatbuffer::Namespace>> keep_ns;
   while (ae != nullptr && !ae->end_pass)
   {
+    if (!collection) { keep_ns.clear(); }
     // Create Label for current example
     switch (all.label_type)
     {
@@ -251,7 +248,15 @@ void to_flat::convert_txt_to_flat(vw& all)
         break;
       case label_type_t::cb:
       {
-        if (all.l->is_multiline) { to_flat::create_cb_label_multi_ex(ae, multi_ex_builder, multi_ex_index); }
+        if (all.l->is_multiline)
+        {
+          to_flat::create_cb_label_multi_ex(ae, multi_ex_builder);
+          if (!CB::ec_is_example_header(*ae) && ae->l.cb.costs.size() > 0 && multi_ex_builder.example_action == -1)
+          {
+            // this example has a label, need to note which example it is
+            multi_ex_builder.example_action = multi_ex_index;
+          }
+        }
         else
         {
           to_flat::create_cb_label(ae, ex_builder);
@@ -295,26 +300,43 @@ void to_flat::convert_txt_to_flat(vw& all)
     std::vector<flatbuffers::Offset<VW::parsers::flatbuffer::Namespace>> namespaces;
     for (const namespace_index& ns : ae->indices)
     {
+      std::stringstream ss;
+      ss << ns;
       // Skip over constant namespace as that will be assigned while reading flatbuffer again
       if (ns == 128) { continue; }
 
       std::vector<VW::parsers::flatbuffer::FeatureNum> fts;
 
       for (features::iterator& f : ae->feature_space[ns])
-      { fts.push_back(VW::parsers::flatbuffer::FeatureNum(f.index(), f.value())); }
-      namespaces.push_back(VW::parsers::flatbuffer::CreateNamespaceDirect(_builder, nullptr, ns, &fts, nullptr));
+      {
+        fts.push_back(VW::parsers::flatbuffer::FeatureNum(f.index(), f.value()));
+        ss << f.index() << f.value();
+      }
+      auto refid = ss.str();
+      flatbuffers::Offset<VW::parsers::flatbuffer::Namespace> nsoffset;
+      auto fnsoffset = keep_ns.find(refid);
+      if (fnsoffset == keep_ns.end())
+      {
+        // new namespace
+        nsoffset = VW::parsers::flatbuffer::CreateNamespaceDirect(_builder, nullptr, ns, &fts, nullptr);
+        keep_ns[refid] = nsoffset;
+      }
+      else
+      {
+        // offset already exists
+        nsoffset = fnsoffset->second;
+      }
+      namespaces.push_back(nsoffset);
     }
     std::string tag(ae->tag.begin(), ae->tag.size());
-    // auto flat_namespaces =
-    // _builder.CreateVector<flatbuffers::Offset<VW::parsers::flatbuffer::Namespace>>(namespaces);
 
     if (all.l->is_multiline)
     {
-      // TODO share the namespaces
-      multi_ex_builder.namespaces.insert(multi_ex_builder.namespaces.end(), namespaces.begin(), namespaces.end());
-      multi_ex_index++;
       if (!example_is_newline(*ae))
       {
+        multi_ex_builder.namespaces.insert(multi_ex_builder.namespaces.end(), namespaces.begin(), namespaces.end());
+        multi_ex_index++;
+        // TODO share the namespaces
         examples++;
         ae = all.p->ready_parsed_examples.pop();
         continue;
@@ -330,7 +352,8 @@ void to_flat::convert_txt_to_flat(vw& all)
       if (all.l->is_multiline)
       {
         auto multi_ex = VW::parsers::flatbuffer::CreateMultiExampleDirect(_builder, &multi_ex_builder.namespaces,
-            multi_ex_builder.shared_type, multi_ex_builder.shared, multi_ex_builder.label_type, multi_ex_builder.label);
+            multi_ex_builder.shared_type, multi_ex_builder.shared, multi_ex_builder.label_type, multi_ex_builder.label,
+            multi_ex_builder.example_action);
 
         multi_example_collection.push_back(multi_ex);
         multi_ex_index = 0;
@@ -340,6 +363,7 @@ void to_flat::convert_txt_to_flat(vw& all)
         multi_ex_builder.shared = 0;
         multi_ex_builder.label_type = VW::parsers::flatbuffer::Label_NONE;
         multi_ex_builder.label = 0;
+        multi_ex_builder.example_action = -1;
       }
       else
       {
@@ -354,21 +378,20 @@ void to_flat::convert_txt_to_flat(vw& all)
       collection_count++;
       if (collection_count >= collection_size)
       {
+        flatbuffers::Offset<VW::parsers::flatbuffer::ExampleCollection> egcollection;
         if (all.l->is_multiline)
         {
-          auto egcollection =
-              VW::parsers::flatbuffer::CreateMultiExampleCollectionDirect(_builder, &multi_example_collection);
-          auto root = CreateExampleRoot(
-              _builder, VW::parsers::flatbuffer::ExampleType_MultiExampleCollection, egcollection.Union());
-          _builder.FinishSizePrefixed(root);
+          egcollection = VW::parsers::flatbuffer::CreateExampleCollectionDirect(
+              _builder, nullptr, &multi_example_collection, true);
         }
         else
         {
-          auto egcollection = VW::parsers::flatbuffer::CreateExampleCollectionDirect(_builder, &example_collection);
-          auto root =
-              CreateExampleRoot(_builder, VW::parsers::flatbuffer::ExampleType_ExampleCollection, egcollection.Union());
-          _builder.FinishSizePrefixed(root);
+          egcollection =
+              VW::parsers::flatbuffer::CreateExampleCollectionDirect(_builder, &example_collection, nullptr, false);
         }
+        auto root =
+            CreateExampleRoot(_builder, VW::parsers::flatbuffer::ExampleType_ExampleCollection, egcollection.Union());
+        _builder.FinishSizePrefixed(root);
         uint8_t* buf = _builder.GetBufferPointer();
         int size = _builder.GetSize();
         outfile.write(reinterpret_cast<char*>(buf), size);
@@ -376,6 +399,7 @@ void to_flat::convert_txt_to_flat(vw& all)
         example_collection.clear();
         multi_example_collection.clear();
         collection_count = 0;
+        keep_ns.clear();
       }
     }
     else
@@ -383,7 +407,8 @@ void to_flat::convert_txt_to_flat(vw& all)
       if (all.l->is_multiline)
       {
         auto multi_ex = VW::parsers::flatbuffer::CreateMultiExampleDirect(_builder, &multi_ex_builder.namespaces,
-            multi_ex_builder.shared_type, multi_ex_builder.shared, multi_ex_builder.label_type, multi_ex_builder.label);
+            multi_ex_builder.shared_type, multi_ex_builder.shared, multi_ex_builder.label_type, multi_ex_builder.label,
+            multi_ex_builder.example_action);
 
         multi_ex_index = 0;
 
@@ -392,6 +417,7 @@ void to_flat::convert_txt_to_flat(vw& all)
         multi_ex_builder.shared = flatbuffers::Offset<void>();
         multi_ex_builder.label_type = VW::parsers::flatbuffer::Label_NONE;
         multi_ex_builder.label = flatbuffers::Offset<void>();
+        multi_ex_builder.example_action = -1;
 
         auto root = VW::parsers::flatbuffer::CreateExampleRoot(
             _builder, VW::parsers::flatbuffer::ExampleType_MultiExample, multi_ex.Union());
@@ -421,7 +447,16 @@ void to_flat::convert_txt_to_flat(vw& all)
 
   if (collection && collection_count > 0)
   {
-    auto egcollection = VW::parsers::flatbuffer::CreateExampleCollectionDirect(_builder, &example_collection);
+    flatbuffers::Offset<VW::parsers::flatbuffer::ExampleCollection> egcollection;
+    if (all.l->is_multiline)
+    {
+      egcollection =
+          VW::parsers::flatbuffer::CreateExampleCollectionDirect(_builder, nullptr, &multi_example_collection, true);
+    }
+    else
+    {
+      egcollection = VW::parsers::flatbuffer::CreateExampleCollectionDirect(_builder, &example_collection);
+    }
     auto root = VW::parsers::flatbuffer::CreateExampleRoot(
         _builder, VW::parsers::flatbuffer::ExampleType_ExampleCollection, egcollection.Union());
     _builder.FinishSizePrefixed(root);

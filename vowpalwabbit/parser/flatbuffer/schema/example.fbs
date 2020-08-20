@@ -104,18 +104,17 @@ table MultiExample
   namespaces:[Namespace];
   shared:Label;
   label:Label; // right now either cs_label or cb_class
+  example_w_label:uint32;
   /// tag?
 }
 
 table ExampleCollection {
   examples:[Example];
-}
-
-table MultiExampleCollection {
   multi_examples:[MultiExample];
+  is_multiline:bool;
 }
 
-union ExampleType {Example, ExampleCollection, MultiExample, MultiExampleCollection}
+union ExampleType {Example, ExampleCollection, MultiExample}
 
 table ExampleRoot
 {

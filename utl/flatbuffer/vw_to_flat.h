@@ -15,6 +15,7 @@ struct MultiExampleBuilder
   flatbuffers::Offset<void> shared;
   VW::parsers::flatbuffer::Label label_type = VW::parsers::flatbuffer::Label_NONE;
   flatbuffers::Offset<void> label;
+  uint32_t example_action = -1;
 };
 
 struct ExampleBuilder
@@ -38,7 +39,7 @@ private:
   flatbuffers::FlatBufferBuilder _builder;
   void create_simple_label(example* v, ExampleBuilder& ex_builder);
   void create_cb_label(example* v, ExampleBuilder& ex_builder);
-  void create_cb_label_multi_ex(example* v, MultiExampleBuilder& ex_builder, uint32_t multi_ex_index);
+  void create_cb_label_multi_ex(example* v, MultiExampleBuilder& ex_builder);
   void create_ccb_label(example* v, ExampleBuilder& ex_builder);
   void create_cb_eval_label(example* v, ExampleBuilder& ex_builder);
   void create_mc_label(example* v, ExampleBuilder& ex_builder);
