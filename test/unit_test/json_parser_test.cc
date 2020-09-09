@@ -10,6 +10,39 @@
 #include <vector>
 #include "conditional_contextual_bandit.h"
 #include "vw.h"
+
+BOOST_AUTO_TEST_CASE(parse_json_cats)
+{
+  std::string json_text = R"(
+{
+  "_label_CA_Cost": 0.657567,
+  "_label_CA_Probability": 6.20426e-05,
+  "_label_CA_Action": 185.121,
+  "18-25":1,
+  "4":1,
+  "C":1,
+  "0":1,
+  "0":1,
+  "1":1,
+  "2":1,
+  "15":1,
+  "M":1
+}
+)";
+  auto vw = VW::initialize("--json --cats 4 --min_value=185 --max_value=23959 --bandwidth 1 --no_stdin --quiet", nullptr, false, nullptr, nullptr);
+  auto examples = parse_json(*vw, json_text);
+
+  BOOST_CHECK_EQUAL(examples.size(), 1);
+
+  BOOST_CHECK_EQUAL(examples[0]->l.cb_cont.costs.size(), 1);
+  BOOST_CHECK_CLOSE(examples[0]->l.cb_cont.costs[0].probability, 6.20426e-05, FLOAT_TOL);
+  BOOST_CHECK_CLOSE(examples[0]->l.cb_cont.costs[0].cost, 0.657567, FLOAT_TOL);
+  BOOST_CHECK_CLOSE(examples[0]->l.cb_cont.costs[0].action, 185.121, FLOAT_TOL);
+
+  VW::finish_example(*vw, examples);
+  VW::finish(*vw);
+}
+
 // TODO: Make unit test dig out and verify features.
 BOOST_AUTO_TEST_CASE(parse_json_simple)
 {

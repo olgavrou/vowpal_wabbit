@@ -33,6 +33,7 @@ VW_WARNING_STATE_POP
 
 #include "cb.h"
 #include "conditional_contextual_bandit.h"
+#include "cb_continuous_label.h"
 
 #include "best_constant.h"
 #include "json_utils.h"
@@ -134,8 +135,11 @@ class LabelObjectState : public BaseState<audit>
 
  public:
   CB::cb_class cb_label;
+  VW::cb_continuous::continuous_label_elm cb_continuous_label;
+
   bool found;
   bool found_cb;
+  bool found_cb_continuous;
   std::vector<unsigned int> actions;
   std::vector<float> probs;
   std::vector<unsigned int> inc;
@@ -144,9 +148,10 @@ class LabelObjectState : public BaseState<audit>
 
   void init(vw* /* all */)
   {
-    found = found_cb = false;
+    found = found_cb = found_cb_continuous = false;
 
     cb_label = {0., 0, 0., 0.};
+    cb_continuous_label = {0., 0., 0.};
   }
 
   BaseState<audit>* StartObject(Context<audit>& ctx) override
@@ -208,6 +213,17 @@ class LabelObjectState : public BaseState<audit>
       cb_label.probability = std::numeric_limits<float>::quiet_NaN();
       found_cb = true;
     }
+    // CB continuous
+    else if (!_stricmp(ctx.key, "CA_Cost"))
+    {
+      cb_continuous_label.cost = std::numeric_limits<float>::quiet_NaN();
+      found_cb_continuous = true;
+    }
+    else if (!_stricmp(ctx.key, "CA_Probability"))
+    {
+      cb_continuous_label.probability = std::numeric_limits<float>::quiet_NaN();
+      found_cb_continuous = true;
+    }
     else
     {
       ctx.error() << "Unsupported label property: '" << ctx.key << "' len: " << ctx.key_length;
@@ -250,6 +266,22 @@ class LabelObjectState : public BaseState<audit>
     {
       cb_label.probability = v;
       found_cb = true;
+    }
+    // CB continuous
+    else if (!_stricmp(ctx.key, "CA_Action"))
+    {
+      cb_continuous_label.action = v;
+      found_cb_continuous = true;
+    }
+    else if (!_stricmp(ctx.key, "CA_Cost"))
+    {
+      cb_continuous_label.cost = v;
+      found_cb_continuous = true;
+    }
+    else if (!_stricmp(ctx.key, "CA_Probability"))
+    {
+      cb_continuous_label.probability = v;
+      found_cb_continuous = true;
     }
     else
     {
@@ -321,6 +353,14 @@ class LabelObjectState : public BaseState<audit>
 
       found_cb = false;
       cb_label = {0., 0, 0., 0.};
+    }
+    else if (found_cb_continuous)
+    {
+      VW::cb_continuous::continuous_label* ld = (VW::cb_continuous::continuous_label*)&ctx.ex->l;
+      ld->costs.push_back(cb_continuous_label);
+
+      found_cb_continuous = false;
+      cb_continuous_label = {0., 0., 0.};
     }
     else if (found)
     {
@@ -1598,7 +1638,7 @@ bool parse_line_json(vw* all, char* line, size_t num_chars, v_array<example*>& e
     }
 
     // let's ask to continue reading data until we find a line with actions provided
-    if (interaction.actions.size() == 0)
+    if (interaction.actions.size() == 0 && all->l->is_multiline)
     {
       VW::return_multiple_example(*all, examples);
       examples.push_back(&VW::get_unused_example(all));

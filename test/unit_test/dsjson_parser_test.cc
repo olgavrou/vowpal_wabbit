@@ -35,6 +35,79 @@ multi_ex parse_dsjson(vw& all, std::string line, DecisionServiceInteraction* int
   return result;
 }
 
+BOOST_AUTO_TEST_CASE(parse_dsjson_cats)
+{
+  std::string json_text = R"(
+{
+  "_label_CA_Cost": 0.657567,
+  "_label_CA_Probability": 6.20426e-05,
+  "_label_CA_Action": 185.121,
+  "Version": "1",
+  "EventId": "event_id",
+  "c": {
+    "18-25":1,
+    "4":1,
+    "C":1,
+    "0":1,
+    "0":1,
+    "1":1,
+    "2":1,
+    "15":1,
+    "M":1
+  },
+  "VWState": {
+    "m": "N/A"
+  }
+}
+)";
+  auto vw = VW::initialize("--dsjson --cats 4 --min_value=185 --max_value=23959 --bandwidth 1 --no_stdin --quiet", nullptr, false, nullptr, nullptr);
+  auto examples = parse_dsjson(*vw, json_text);
+
+  BOOST_CHECK_EQUAL(examples.size(), 1);
+
+  BOOST_CHECK_EQUAL(examples[0]->l.cb_cont.costs.size(), 1);
+  BOOST_CHECK_CLOSE(examples[0]->l.cb_cont.costs[0].probability, 6.20426e-05, FLOAT_TOL);
+  BOOST_CHECK_CLOSE(examples[0]->l.cb_cont.costs[0].cost, 0.657567, FLOAT_TOL);
+  BOOST_CHECK_CLOSE(examples[0]->l.cb_cont.costs[0].action, 185.121, FLOAT_TOL);
+
+  VW::finish_example(*vw, examples);
+  VW::finish(*vw);
+}
+
+BOOST_AUTO_TEST_CASE(parse_dsjson_cb_no_adf)
+{
+  std::string json_text = R"(
+{
+  "_label_cost": 1,
+  "_label_probability": 0.5,
+  "_label_action": 1,
+  "Version": "1",
+  "EventId": "event_id",
+  "c": {
+    "tuesday":1,
+    "year":1,
+    "million":1,
+    "short":1
+  },
+  "VWState": {
+    "m": "N/A"
+  }
+}
+)";
+  auto vw = VW::initialize("--dsjson --cb_explore 2 --no_stdin --quiet", nullptr, false, nullptr, nullptr);
+  auto examples = parse_dsjson(*vw, json_text);
+
+  BOOST_CHECK_EQUAL(examples.size(), 1);
+
+  BOOST_CHECK_EQUAL(examples[0]->l.cb.costs.size(), 1);
+  BOOST_CHECK_CLOSE(examples[0]->l.cb.costs[0].probability, 0.5, FLOAT_TOL);
+  BOOST_CHECK_CLOSE(examples[0]->l.cb.costs[0].cost, 1, FLOAT_TOL);
+  BOOST_CHECK_EQUAL(examples[0]->l.cb.costs[0].action, 1);
+
+  VW::finish_example(*vw, examples);
+  VW::finish(*vw);
+}
+
 // TODO: Make unit test dig out and verify features.
 BOOST_AUTO_TEST_CASE(parse_dsjson_cb)
 {
