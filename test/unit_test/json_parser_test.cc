@@ -11,37 +11,93 @@
 #include "conditional_contextual_bandit.h"
 #include "vw.h"
 
-BOOST_AUTO_TEST_CASE(parse_json_cats)
-{
-  std::string json_text = R"(
-{
-  "_label_CA_Cost": 0.657567,
-  "_label_CA_Probability": 6.20426e-05,
-  "_label_CA_Action": 185.121,
-  "18-25":1,
-  "4":1,
-  "C":1,
-  "0":1,
-  "0":1,
-  "1":1,
-  "2":1,
-  "15":1,
-  "M":1
-}
-)";
-  auto vw = VW::initialize("--json --cats 4 --min_value=185 --max_value=23959 --bandwidth 1 --no_stdin --quiet", nullptr, false, nullptr, nullptr);
-  auto examples = parse_json(*vw, json_text);
+// BOOST_AUTO_TEST_CASE(parse_json_cats)
+// {
+//   std::vector<std::string> features = {"18-25", "4", "C", "0", "0", "1", "2", "15", "M"};
+// //   std::string json_text = R"(
+// // {
+// //   "_label_CA_Cost": 0.657567,
+// //   "_label_CA_Probability": 6.20426e-05,
+// //   "_label_CA_Action": 185.121,
+// //   "18-25":1,
+// //   "4":1,
+// //   "C":1,
+// //   "0":1,
+// //   "0":1,
+// //   "1":1,
+// //   "2":1,
+// //   "15":1,
+// //   "M":1
+// // }
+// // )";
 
-  BOOST_CHECK_EQUAL(examples.size(), 1);
+//  std::string json_text = R"(
+// {
+//   "_label": "ca 185.121:0.657567:6.20426e-05",
+//   "18-25":1,
+//   "4":1,
+//   "C":1,
+//   "0":1,
+//   "0":1,
+//   "1":1,
+//   "2":1,
+//   "15":1,
+//   "M":1
+// }
+// )";
+//   auto vw = VW::initialize("--json --cats 4 --min_value=185 --max_value=23959 --bandwidth 1 --no_stdin --quiet", nullptr, false, nullptr, nullptr);
+//   auto examples = parse_json(*vw, json_text);
 
-  BOOST_CHECK_EQUAL(examples[0]->l.cb_cont.costs.size(), 1);
-  BOOST_CHECK_CLOSE(examples[0]->l.cb_cont.costs[0].probability, 6.20426e-05, FLOAT_TOL);
-  BOOST_CHECK_CLOSE(examples[0]->l.cb_cont.costs[0].cost, 0.657567, FLOAT_TOL);
-  BOOST_CHECK_CLOSE(examples[0]->l.cb_cont.costs[0].action, 185.121, FLOAT_TOL);
+//   BOOST_CHECK_EQUAL(examples.size(), 1);
 
-  VW::finish_example(*vw, examples);
-  VW::finish(*vw);
-}
+//   BOOST_CHECK_EQUAL(examples[0]->l.cb_cont.costs.size(), 1);
+//   BOOST_CHECK_CLOSE(examples[0]->l.cb_cont.costs[0].probability, 6.20426e-05, FLOAT_TOL);
+//   BOOST_CHECK_CLOSE(examples[0]->l.cb_cont.costs[0].cost, 0.657567, FLOAT_TOL);
+//   BOOST_CHECK_CLOSE(examples[0]->l.cb_cont.costs[0].action, 185.121, FLOAT_TOL);
+
+//   auto& space_names = examples[0]->feature_space[' '].space_names;
+//   BOOST_CHECK_EQUAL(features.size(), space_names.size());
+//   for (size_t i = 0; i < space_names.size(); i++)
+//   {
+//     BOOST_CHECK_EQUAL(space_names[i]->second, features[i]);
+//   }
+
+//   VW::finish_example(*vw, examples);
+//   VW::finish(*vw);
+// }
+
+// BOOST_AUTO_TEST_CASE(parse_json_cats_no_label)
+// {
+//   std::vector<std::string> features = {"18-25", "4", "C", "0", "0", "1", "2", "15", "M"};
+//   std::string json_text = R"(
+// {
+//   "18-25":1,
+//   "4":1,
+//   "C":1,
+//   "0":1,
+//   "0":1,
+//   "1":1,
+//   "2":1,
+//   "15":1,
+//   "M":1
+// }
+// )";
+//   auto vw = VW::initialize("--json -t --cats 4 --min_value=185 --max_value=23959 --bandwidth 1 --no_stdin --quiet", nullptr, false, nullptr, nullptr);
+//   auto examples = parse_json(*vw, json_text);
+
+//   BOOST_CHECK_EQUAL(examples.size(), 1);
+//   BOOST_CHECK_EQUAL(examples[0]->l.cb_cont.costs.size(), 0);
+
+//   auto& space_names = examples[0]->feature_space[' '].space_names;
+//   BOOST_CHECK_EQUAL(features.size(), space_names.size());
+//   for (size_t i = 0; i < space_names.size(); i++)
+//   {
+//     BOOST_CHECK_EQUAL(space_names[i]->second, features[i]);
+//   }
+
+//   VW::finish_example(*vw, examples);
+//   VW::finish(*vw);
+// }
 
 // TODO: Make unit test dig out and verify features.
 BOOST_AUTO_TEST_CASE(parse_json_simple)
@@ -103,6 +159,22 @@ BOOST_AUTO_TEST_CASE(parse_json_cb)
   BOOST_CHECK_EQUAL(examples[0]->l.cb.costs.size(), 1);
   BOOST_CHECK_CLOSE(examples[0]->l.cb.costs[0].probability, -1.f, FLOAT_TOL);
   BOOST_CHECK_CLOSE(examples[0]->l.cb.costs[0].cost, FLT_MAX, FLOAT_TOL);
+
+  std::vector<std::string> features = {"s_1", "s_2"};
+  auto& space_names = examples[0]->feature_space[' '].space_names;
+  BOOST_CHECK_EQUAL(features.size(), space_names.size());
+  for (size_t i = 0; i < space_names.size(); i++)
+  {
+    BOOST_CHECK_EQUAL(space_names[i]->second, features[i]);
+  }
+
+  std::vector<std::string> featuress = {"a_1", "b_1", "c_1"};
+  space_names = examples[1]->feature_space[' '].space_names;
+  BOOST_CHECK_EQUAL(featuress.size(), space_names.size());
+  for (size_t i = 0; i < space_names.size(); i++)
+  {
+    BOOST_CHECK_EQUAL(space_names[i]->second, featuress[i]);
+  }
 
   // Action examples
   BOOST_CHECK_EQUAL(examples[1]->l.cb.costs.size(), 1);
