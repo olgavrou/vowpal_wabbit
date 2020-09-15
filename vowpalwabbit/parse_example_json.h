@@ -135,7 +135,6 @@ class LabelObjectState : public BaseState<audit>
 
  public:
   CB::cb_class cb_label;
-  VW::cb_continuous::continuous_label_elm cb_continuous_label;
 
   bool found;
   bool found_cb;
@@ -151,7 +150,6 @@ class LabelObjectState : public BaseState<audit>
     found = found_cb = found_cb_continuous = false;
 
     cb_label = {0., 0, 0., 0.};
-    cb_continuous_label = {0., 0., 0.};
   }
 
   BaseState<audit>* StartObject(Context<audit>& ctx) override
@@ -167,6 +165,12 @@ class LabelObjectState : public BaseState<audit>
 
     // keep previous state
     return_state = ctx.previous_state;
+
+    if (found_cb_continuous)
+    {
+      VW::cb_continuous::continuous_label* ld = (VW::cb_continuous::continuous_label*)&ctx.ex->l;
+      ld->costs.push_back({0., 0., 0.});
+    }
 
     return this;
   }
@@ -205,24 +209,29 @@ class LabelObjectState : public BaseState<audit>
     // CB
     else if (!_stricmp(ctx.key, "Cost"))
     {
-      cb_label.cost = std::numeric_limits<float>::quiet_NaN();
-      found_cb = true;
+      if (found_cb_continuous)
+      {
+        VW::cb_continuous::continuous_label* ld = (VW::cb_continuous::continuous_label*)&ctx.ex->l;
+        ld->costs[0].cost = std::numeric_limits<float>::quiet_NaN();
+      }
+      else
+      {
+        cb_label.cost = std::numeric_limits<float>::quiet_NaN();
+        found_cb = true;
+      }
     }
     else if (!_stricmp(ctx.key, "Probability"))
     {
-      cb_label.probability = std::numeric_limits<float>::quiet_NaN();
-      found_cb = true;
-    }
-    // CB continuous
-    else if (!_stricmp(ctx.key, "CA_Cost"))
-    {
-      cb_continuous_label.cost = std::numeric_limits<float>::quiet_NaN();
-      found_cb_continuous = true;
-    }
-    else if (!_stricmp(ctx.key, "CA_Probability"))
-    {
-      cb_continuous_label.probability = std::numeric_limits<float>::quiet_NaN();
-      found_cb_continuous = true;
+      if (found_cb_continuous)
+      {
+        VW::cb_continuous::continuous_label* ld = (VW::cb_continuous::continuous_label*)&ctx.ex->l;
+        ld->costs[0].probability = std::numeric_limits<float>::quiet_NaN();
+      }
+      else
+      {
+        cb_label.probability = std::numeric_limits<float>::quiet_NaN();
+        found_cb = true;
+      }
     }
     else
     {
@@ -254,34 +263,42 @@ class LabelObjectState : public BaseState<audit>
     // CB
     else if (!_stricmp(ctx.key, "Action"))
     {
-      cb_label.action = (uint32_t)v;
-      found_cb = true;
+      if (found_cb_continuous)
+      {
+        VW::cb_continuous::continuous_label* ld = (VW::cb_continuous::continuous_label*)&ctx.ex->l;
+        ld->costs[0].action = v;
+      }
+      else
+      {
+        cb_label.action = (uint32_t)v;
+        found_cb = true;
+      }
     }
     else if (!_stricmp(ctx.key, "Cost"))
     {
-      cb_label.cost = v;
-      found_cb = true;
+      if (found_cb_continuous)
+      {
+        VW::cb_continuous::continuous_label* ld = (VW::cb_continuous::continuous_label*)&ctx.ex->l;
+        ld->costs[0].cost = v;
+      }
+      else
+      {
+        cb_label.cost = v;
+        found_cb = true;
+      }
     }
     else if (!_stricmp(ctx.key, "Probability"))
     {
-      cb_label.probability = v;
-      found_cb = true;
-    }
-    // CB continuous
-    else if (!_stricmp(ctx.key, "CA_Action"))
-    {
-      cb_continuous_label.action = v;
-      found_cb_continuous = true;
-    }
-    else if (!_stricmp(ctx.key, "CA_Cost"))
-    {
-      cb_continuous_label.cost = v;
-      found_cb_continuous = true;
-    }
-    else if (!_stricmp(ctx.key, "CA_Probability"))
-    {
-      cb_continuous_label.probability = v;
-      found_cb_continuous = true;
+      if (found_cb_continuous)
+      {
+        VW::cb_continuous::continuous_label* ld = (VW::cb_continuous::continuous_label*)&ctx.ex->l;
+        ld->costs[0].probability = v;
+      }
+      else
+      {
+        cb_label.probability = v;
+        found_cb = true;
+      }
     }
     else
     {
@@ -356,11 +373,7 @@ class LabelObjectState : public BaseState<audit>
     }
     else if (found_cb_continuous)
     {
-      VW::cb_continuous::continuous_label* ld = (VW::cb_continuous::continuous_label*)&ctx.ex->l;
-      ld->costs.push_back(cb_continuous_label);
-
       found_cb_continuous = false;
-      cb_continuous_label = {0., 0., 0.};
     }
     else if (found)
     {
@@ -378,6 +391,11 @@ template <bool audit>
 struct LabelSinglePropertyState : BaseState<audit>
 {
   LabelSinglePropertyState() : BaseState<audit>("LabelSingleProperty") {}
+
+  BaseState<audit>* StartObject(Context<audit>& ctx) override
+  {
+    return ctx.label_object_state.StartObject(ctx);
+  }
 
   // forward _label
   BaseState<audit>* Float(Context<audit>& ctx, float v) override
@@ -812,7 +830,13 @@ class DefaultState : public BaseState<audit>
       if (ctx.key_length >= 6 && !strncmp(ctx.key, "_label", 6))
       {
         if (ctx.key_length >= 7 && ctx.key[6] == '_')
+        {
+          if (length >= 9 && !strncmp(&ctx.key[7], "ca", 2))
+          {
+            ctx.label_object_state.found_cb_continuous = true;
+          }
           return &ctx.label_single_property_state;
+        }
         else if (ctx.key_length == 6)
           return &ctx.label_state;
         else if (ctx.key_length == 11 && !_stricmp(ctx.key, "_labelIndex"))
@@ -1300,7 +1324,13 @@ class DecisionServiceState : public BaseState<audit>
         ctx.key = str;
         ctx.key_length = length;
         if (length >= 7 && ctx.key[6] == '_')
+        {
+          if (length >= 9 && !strncmp(&ctx.key[7], "ca", 2))
+          {
+            ctx.label_object_state.found_cb_continuous = true;
+          }
           return &ctx.label_single_property_state;
+        }
         else if (length == 6)
           return &ctx.label_state;
         else if (length == 11 && !_stricmp(str, "_labelIndex"))
