@@ -1,7 +1,7 @@
 #pragma once
 
-#define S_EXPLORATION_OK                             0
-#define E_EXPLORATION_BAD_RANGE                      1
+#define S_EXPLORATION_OK 0
+#define E_EXPLORATION_BAD_RANGE 1
 #define E_EXPLORATION_PMF_RANKING_SIZE_MISMATCH 2
 #define E_EXPLORATION_BAD_PDF 3
 
@@ -122,5 +122,9 @@ int swap_chosen(ActionIt action_first, ActionIt action_last, uint32_t chosen_ind
  */
 template <typename It>
 int sample_pdf(uint64_t* p_seed, It pdf_first, It pdf_last, float& chosen_value, float& pdf_value);
+
+template <typename It>
+int generate_pdf_given_chosen_action(It pdf_first, It pdf_last, float action, uint32_t min_value, uint32_t max_value,
+    uint32_t num_actions, uint32_t bandwidth, float epsilon);
 
 }  // namespace exploration

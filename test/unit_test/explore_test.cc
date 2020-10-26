@@ -177,3 +177,92 @@ BOOST_AUTO_TEST_CASE(swap_test)
   const std::vector<float> expected_pdf_2 = { 0.266666667f,	0.133333333f,	0.2f,	0.066666667f,	0.333333333f };
   check_collections_with_float_tolerance(pdf, expected_pdf_2, .0001f);
 }
+
+BOOST_AUTO_TEST_CASE(mytest)
+{
+  uint32_t num_actions = 16;
+  uint32_t min_value = 185;
+  uint32_t max_value = 23959;
+  uint32_t bandwidth = 3;
+  
+  {
+    float action = 185;
+    std::vector<VW::continuous_actions::pdf_segment> pdf(num_actions);
+    exploration::generate_pdf_given_chosen_action(begin(pdf), end(pdf), action, min_value, max_value, num_actions, bandwidth, 0.2f);
+    float mass = 0;
+    for (auto& p : pdf)
+    {
+      mass += (p.right - p.left)*p.pdf_value;
+      if (p.pdf_value != 0)
+      {
+        std::cout << p.left << " - " << p.right << " => " << p.pdf_value << std::endl;
+      }
+    }
+    std::cout << mass << std::endl << std::endl;
+  }
+
+  {
+    float action = 8108;
+    std::vector<VW::continuous_actions::pdf_segment> pdf(num_actions);
+    exploration::generate_pdf_given_chosen_action(begin(pdf), end(pdf), action, min_value, max_value, num_actions, bandwidth, 0.05f);
+    float mass = 0;
+    for (auto& p : pdf)
+    {
+      mass += (p.right - p.left)*p.pdf_value;
+      if (p.pdf_value != 0)
+      {
+        std::cout << p.left << " - " << p.right << " => " << p.pdf_value << std::endl;
+      }
+    }
+    std::cout << mass << std::endl << std::endl;
+  }
+
+  {
+    float action = 8110;
+    std::vector<VW::continuous_actions::pdf_segment> pdf(num_actions);
+    exploration::generate_pdf_given_chosen_action(begin(pdf), end(pdf), action, min_value, max_value, num_actions, bandwidth, 0.1f);
+    float mass = 0;
+    for (auto& p : pdf)
+    {
+      mass += (p.right - p.left)*p.pdf_value;
+      if (p.pdf_value != 0)
+      {
+        std::cout << p.left << " - " << p.right << " => " << p.pdf_value << std::endl;
+      }
+    }
+    std::cout << mass << std::endl << std::endl;
+  }
+
+  {
+    float action = 16035;
+    std::vector<VW::continuous_actions::pdf_segment> pdf(num_actions);
+    exploration::generate_pdf_given_chosen_action(begin(pdf), end(pdf), action, min_value, max_value, num_actions, bandwidth, 0.2f);
+    float mass = 0;
+    for (auto& p : pdf)
+    {
+      mass += (p.right - p.left)*p.pdf_value;
+      if (p.pdf_value != 0)
+      {
+        std::cout << p.left << " - " << p.right << " => " << p.pdf_value << std::endl;
+      }
+    }
+    std::cout << mass << std::endl << std::endl;
+  }
+
+
+  {
+    float action = 23959;
+    std::vector<VW::continuous_actions::pdf_segment> pdf(num_actions);
+    exploration::generate_pdf_given_chosen_action(begin(pdf), end(pdf), action, min_value, max_value, num_actions, bandwidth, 0.2f);
+    float mass = 0;
+    for (auto& p : pdf)
+    {
+      mass += (p.right - p.left)*p.pdf_value;
+      if (p.pdf_value != 0)
+      {
+        std::cout << p.left << " - " << p.right << " => " << p.pdf_value << std::endl;
+      }
+    }
+    std::cout << mass << std::endl << std::endl;
+  }
+}
