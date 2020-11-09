@@ -35,6 +35,7 @@ struct sample_pdf
 
   void init(single_learner* p_base, uint64_t* p_random_seed);
   ~sample_pdf();
+  bool first_only;
 
 private:
   uint64_t* _p_random_state;
@@ -59,8 +60,16 @@ int sample_pdf::predict(example& ec, experimental::api_status*)
   _pred_pdf.clear();
 
   {  // scope to predict & restore prediction
-    auto restore = VW::swap_guard(ec.pred.pdf, _pred_pdf);
-    _base->predict(ec);
+    if (!first_only)
+    { 
+      auto restore = VW::swap_guard(ec.pred.pdf, _pred_pdf);
+      _base->predict(ec);
+    }
+    else
+    {
+      _base->predict(ec);
+      std::swap(ec.pred.pdf, _pred_pdf);
+    }
   }
 
   const int ret_code = exploration::sample_pdf(_p_random_state, std::begin(_pred_pdf), std::end(_pred_pdf),
@@ -102,8 +111,13 @@ LEARNER::base_learner* sample_pdf_setup(options_i& options, vw& all)
 {
   option_group_definition new_options("Continuous actions");
   bool invoked = false;
-  new_options.add(
-      make_option("sample_pdf", invoked).keep().necessary().help("Sample a pdf and pick a continuous valued action"));
+  bool first_only = false;
+  new_options
+      .add(make_option("sample_pdf", invoked)
+               .keep()
+               .necessary()
+               .help("Sample a pdf and pick a continuous valued action"))
+      .add(make_option("first_only", first_only).keep().help("Only explore the user provided first action or user provided pdf"));
 
   // If sample_pdf reduction was not invoked, don't add anything
   // to the reduction stack;
@@ -112,6 +126,7 @@ LEARNER::base_learner* sample_pdf_setup(options_i& options, vw& all)
   LEARNER::base_learner* p_base = setup_base(options, all);
   auto p_reduction = scoped_calloc_or_throw<sample_pdf>();
   p_reduction->init(as_singleline(p_base), &all.random_seed);
+  p_reduction->first_only = first_only;
 
   LEARNER::learner<sample_pdf, example>& l = init_learner(p_reduction, as_singleline(p_base), predict_or_learn<true>,
       predict_or_learn<false>, 1, prediction_type_t::action_pdf_value);

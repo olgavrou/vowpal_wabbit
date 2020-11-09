@@ -2,6 +2,7 @@
 // individual contributors. All rights reserved. Released under a BSD (revised)
 // license as described in the file LICENSE.
 
+#include "err_constants.h"
 #include "reductions.h"
 #include "pmf_to_pdf.h"
 #include "explore.h"
@@ -104,10 +105,33 @@ reduction::~reduction()
 
 void reduction::predict(example& ec)
 {
-  auto swap_label = VW::swap_guard(ec.l.cb, temp_lbl_cb);
-  {  // scope for saving / restoring prediction
-    auto save_prediction = VW::swap_guard(ec.pred.a_s, temp_pred_a_s);
-    _p_base->predict(ec);
+  if (ec.pred.pdf.size() == 1)
+  {
+    // we already have a prediction passed, process here
+    float chosen_action = ec.pred.pdf[0].left;
+    const float continuous_range = max_value - min_value;
+    const float unit_range = continuous_range / (num_actions - 1);
+
+    // discretize chosen action
+    auto start = min_value;
+    uint32_t action = 0;
+    while (start < max_value && chosen_action > start + unit_range)
+    {
+      action++;
+      start += unit_range;
+    }
+
+    if (action > num_actions - 1) { action = num_actions - 1; }
+    temp_pred_a_s.clear();
+    temp_pred_a_s.push_back({action, 1.f});
+  }
+  else
+  {
+    auto swap_label = VW::swap_guard(ec.l.cb, temp_lbl_cb);
+    {  // scope for saving / restoring prediction
+      auto save_prediction = VW::swap_guard(ec.pred.a_s, temp_pred_a_s);
+      _p_base->predict(ec);
+    }
   }
   transform_prediction(ec);
 }

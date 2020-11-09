@@ -4,6 +4,7 @@ add_executable(vw-unit-test.out
   ccb_parser_test.cc
   ccb_test.cc
   chain_hashing.cc
+  cats_user_provided_pdf.cc
   continuous_actions_parser_test.cc
   dsjson_parser_test.cc
   error_test.cc

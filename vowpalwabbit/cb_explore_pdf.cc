@@ -34,6 +34,7 @@ struct cb_explore_pdf
   float epsilon;
   float min_value;
   float max_value;
+  bool first_only;
 
 private:
   single_learner* _base = nullptr;
@@ -47,6 +48,18 @@ int cb_explore_pdf::learn(example& ec, experimental::api_status*)
 
 int cb_explore_pdf::predict(example& ec, experimental::api_status*)
 {
+  if (first_only && ec.pred.pdf.size() == 0)
+  {
+    // uniform random
+    ec.pred.pdf.push_back({min_value, max_value, static_cast<float>(1. / (max_value - min_value))});
+    return error_code::success;
+  }
+  else if (first_only && ec.pred.pdf.size() > 1)
+  {
+    // pdf provided by user, continue
+    return error_code::success;
+  }
+
   _base->predict(ec);
 
   continuous_actions::probability_density_function& _pred_pdf = ec.pred.pdf;
@@ -81,6 +94,7 @@ LEARNER::base_learner* cb_explore_pdf_setup(config::options_i& options, vw& all)
   float epsilon;
   float min;
   float max;
+  bool first_only = false;
   new_options
       .add(make_option("cb_explore_pdf", invoked)
                .keep()
@@ -92,7 +106,8 @@ LEARNER::base_learner* cb_explore_pdf_setup(config::options_i& options, vw& all)
                .default_value(0.05f)
                .help("epsilon-greedy exploration"))
       .add(make_option("min_value", min).keep().default_value(0.0f).help("min value for continuous range"))
-      .add(make_option("max_value", max).keep().default_value(1.0f).help("max value for continuous range"));
+      .add(make_option("max_value", max).keep().default_value(1.0f).help("max value for continuous range"))
+      .add(make_option("first_only", first_only).keep().help("Only explore the user provided first action or user provided pdf"));
 
   // If reduction was not invoked, don't add anything
   // to the reduction stack;
@@ -107,6 +122,7 @@ LEARNER::base_learner* cb_explore_pdf_setup(config::options_i& options, vw& all)
   p_reduction->epsilon = epsilon;
   p_reduction->min_value = min;
   p_reduction->max_value = max;
+  p_reduction->first_only = first_only;
 
   LEARNER::learner<cb_explore_pdf, example>& l = init_learner(
       p_reduction, as_singleline(p_base), predict_or_learn<true>, predict_or_learn<false>, 1, prediction_type_t::pdf);

@@ -167,10 +167,11 @@ class ArrayToPdfState : public BaseState<audit>
     return this;
   }
 
-  BaseState<audit>* StartArray(Context<audit>&) override
+  BaseState<audit>* StartArray(Context<audit>& ctx) override
   {
     done_w_pdf = false;
     pdf = (VW::continuous_actions::probability_density_function*)&ctx.ex->pred.pdf;
+    segment = {0., 0., 0.};
     return this;
   }
 
@@ -183,6 +184,10 @@ class ArrayToPdfState : public BaseState<audit>
   BaseState<audit>* Float(Context<audit>& ctx, float v) override
   {
     if (!_stricmp(ctx.key, "left"))
+    {
+      segment.left = v;
+    }
+    else if (!_stricmp(ctx.key, "action"))
     {
       segment.left = v;
     }
@@ -205,7 +210,7 @@ class ArrayToPdfState : public BaseState<audit>
 
   BaseState<audit>* Uint(Context<audit>& ctx, unsigned v) override { return Float(ctx, (float)v); }
 
-  BaseState<audit>* EndObject(Context<audit>& ctx, rapidjson::SizeType) override
+  BaseState<audit>* EndObject(Context<audit>&, rapidjson::SizeType) override
   {
     if (!done_w_pdf)
     {
