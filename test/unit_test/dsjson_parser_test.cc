@@ -173,55 +173,6 @@ BOOST_AUTO_TEST_CASE(parse_dsjson_cb)
   VW::finish(*vw);
 }
 
-BOOST_AUTO_TEST_CASE(parse_dsjson_cats_action_provided)
-{
-  std::vector<std::string> features = {"18-25", "4", "C", "0", "1", "2", "15", "M"};
-  std::string json_text = R"(
-{
-  "Version": "1",
-  "EventId": "event_id",
-  "pdf": [
-    {"left": 185.121, "right":0, "pdf_value": 0}, {"left": 50, "right":50, "pdf_value": 50}
-  ],
-  "c": {
-    "18-25":1,
-    "4":1,
-    "C":1,
-    "0":1,
-    "1":1,
-    "2":1,
-    "15":1,
-    "M":1
-  },
-  "VWState": {
-    "m": "N/A"
-  }
-}
-)";
-  auto vw = VW::initialize("--dsjson --cats 4 --min_value=185 --max_value=23959 --bandwidth 1 --no_stdin --quiet",
-      nullptr, false, nullptr, nullptr);
-  auto examples = parse_dsjson(*vw, json_text);
-
-  BOOST_CHECK_EQUAL(examples.size(), 1);
-
-  BOOST_CHECK_EQUAL(examples[0]->pred.pdf.size(), 2);
-  BOOST_CHECK_CLOSE(examples[0]->pred.pdf[0].left, 185.121, FLOAT_TOL);
-  BOOST_CHECK_CLOSE(examples[0]->pred.pdf[0].right, 0., FLOAT_TOL);
-  BOOST_CHECK_CLOSE(examples[0]->pred.pdf[0].pdf_value, 0., FLOAT_TOL);
-
-  BOOST_CHECK_CLOSE(examples[0]->pred.pdf[1].left, 50., FLOAT_TOL);
-  BOOST_CHECK_CLOSE(examples[0]->pred.pdf[1].right, 50., FLOAT_TOL);
-  BOOST_CHECK_CLOSE(examples[0]->pred.pdf[1].pdf_value, 50., FLOAT_TOL);
-
-  auto& space_names = examples[0]->feature_space[' '].space_names;
-  BOOST_CHECK_EQUAL(features.size(), space_names.size());
-  for (size_t i = 0; i < space_names.size(); i++) { BOOST_CHECK_EQUAL(space_names[i]->second, features[i]); }
-
-  examples[0]->pred.pdf.delete_v();
-  VW::finish_example(*vw, examples);
-  VW::finish(*vw);
-}
-
 BOOST_AUTO_TEST_CASE(parse_dsjson_cats)
 {
   std::vector<std::string> features = {"18-25", "4", "C", "0", "1", "2", "15", "M"};
@@ -314,7 +265,7 @@ BOOST_AUTO_TEST_CASE(parse_dsjson_cats_w_pdf)
   "Version": "1",
   "EventId": "event_id",
   "pdf": [
-    {"left": 185.121, "right":0, "pdf_value": 0}, {"left": 50, "right":50, "pdf_value": 50}
+    {"left": 185.121}, {"left": 50, "right":50, "pdf_value": 50}
   ],
   "c": {
     "18-25":1,
@@ -693,7 +644,7 @@ BOOST_AUTO_TEST_CASE(parse_dsjson_slates)
   BOOST_CHECK_EQUAL(ds_interaction.eventId, "test_id");
   BOOST_CHECK_CLOSE(ds_interaction.probabilityOfDrop, 0.1, FLOAT_TOL);
   BOOST_CHECK_EQUAL(ds_interaction.skipLearn, true);
-  check_collections_exact(ds_interaction.actions, std::vector<unsigned int>{1, 0});
+  check_collections_exact(ds_interaction.actions, std::vector<unsigned int>{1,0});
   check_collections_with_float_tolerance(ds_interaction.probabilities, std::vector<float>{0.8f, 0.6f}, FLOAT_TOL);
 
   VW::finish_example(*vw, examples);
@@ -758,18 +709,12 @@ BOOST_AUTO_TEST_CASE(parse_dsjson_slates_dom_parser)
   check_collections_exact(slates_ex.feature_space['d'].indicies, ccb_ex.feature_space['d'].indicies);
   check_collections_exact(slates_ex.feature_space['e'].indicies, ccb_ex.feature_space['e'].indicies);
 
-  check_collections_with_float_tolerance(
-      slates_ex.feature_space[' '].values, ccb_ex.feature_space[' '].values, FLOAT_TOL);
-  check_collections_with_float_tolerance(
-      slates_ex.feature_space['a'].values, ccb_ex.feature_space['a'].values, FLOAT_TOL);
-  check_collections_with_float_tolerance(
-      slates_ex.feature_space['b'].values, ccb_ex.feature_space['b'].values, FLOAT_TOL);
-  check_collections_with_float_tolerance(
-      slates_ex.feature_space['c'].values, ccb_ex.feature_space['c'].values, FLOAT_TOL);
-  check_collections_with_float_tolerance(
-      slates_ex.feature_space['d'].values, ccb_ex.feature_space['d'].values, FLOAT_TOL);
-  check_collections_with_float_tolerance(
-      slates_ex.feature_space['e'].values, ccb_ex.feature_space['e'].values, FLOAT_TOL);
+  check_collections_with_float_tolerance(slates_ex.feature_space[' '].values, ccb_ex.feature_space[' '].values, FLOAT_TOL);
+  check_collections_with_float_tolerance(slates_ex.feature_space['a'].values, ccb_ex.feature_space['a'].values, FLOAT_TOL);
+  check_collections_with_float_tolerance(slates_ex.feature_space['b'].values, ccb_ex.feature_space['b'].values, FLOAT_TOL);
+  check_collections_with_float_tolerance(slates_ex.feature_space['c'].values, ccb_ex.feature_space['c'].values, FLOAT_TOL);
+  check_collections_with_float_tolerance(slates_ex.feature_space['d'].values, ccb_ex.feature_space['d'].values, FLOAT_TOL);
+  check_collections_with_float_tolerance(slates_ex.feature_space['e'].values, ccb_ex.feature_space['e'].values, FLOAT_TOL);
 
   VW::finish_example(*slates_vw, slates_examples);
   VW::finish(*slates_vw);
