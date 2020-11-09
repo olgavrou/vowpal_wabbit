@@ -39,6 +39,7 @@ VW_WARNING_STATE_POP
 #include "json_utils.h"
 #include "parse_slates_example_json.h"
 #include "vw_string_view.h"
+#include "prob_dist_cont.h"
 #include <algorithm>
 #include <vector>
 #include <limits>
@@ -124,6 +125,94 @@ struct BaseState
   {
     ctx.error() << "Unexpected token: ]";
     return nullptr;
+  }
+};
+
+template <bool audit>
+class ArrayToPdfState : public BaseState<audit>
+{
+ private:
+    BaseState<audit>* obj_return_state;
+ public:
+  VW::continuous_actions::pdf_segment segment;
+  VW::continuous_actions::probability_density_function* pdf;
+  bool found_cb_continuous = false;
+  bool done_w_pdf = true;
+  
+  BaseState<audit>* return_state;
+
+  ArrayToPdfState() : BaseState<audit>("ArrayToPdfObject") {}
+
+  BaseState<audit>* StartObject(Context<audit>& ctx) override
+  {    
+    obj_return_state = ctx.previous_state;
+    return this;
+  }
+
+  BaseState<audit>* Key(Context<audit>& ctx, const char* str, rapidjson::SizeType len, bool /* copy */) override
+  {
+    ctx.key = str;
+    ctx.key_length = len;
+    return this;
+  }
+
+  BaseState<audit>* String(Context<audit>& ctx, const char* str, rapidjson::SizeType /* len */, bool) override
+  {
+    if (_stricmp(str, "NaN") != 0)
+    {
+      ctx.error() << "The only supported string in the array is 'NaN'";
+      return nullptr;
+    }
+
+    return this;
+  }
+
+  BaseState<audit>* StartArray(Context<audit>&) override
+  {
+    done_w_pdf = false;
+    pdf = (VW::continuous_actions::probability_density_function*)&ctx.ex->pred.pdf;
+    return this;
+  }
+
+  BaseState<audit>* EndArray(Context<audit>&, rapidjson::SizeType) override
+  {
+    done_w_pdf = true;
+    return return_state;
+  }
+
+  BaseState<audit>* Float(Context<audit>& ctx, float v) override
+  {
+    if (!_stricmp(ctx.key, "left"))
+    {
+      segment.left = v;
+    }
+    else if (!_stricmp(ctx.key, "right"))
+    {
+      segment.right = v;
+    }
+    else if (!_stricmp(ctx.key, "pdf_value"))
+    {
+      segment.pdf_value = v;
+    }
+    else
+    {
+      ctx.error() << "Unsupported label property: '" << ctx.key << "' len: " << ctx.key_length;
+      return nullptr;
+    }
+
+    return this;
+  }
+
+  BaseState<audit>* Uint(Context<audit>& ctx, unsigned v) override { return Float(ctx, (float)v); }
+
+  BaseState<audit>* EndObject(Context<audit>& ctx, rapidjson::SizeType) override
+  {
+    if (!done_w_pdf)
+    {
+      pdf->push_back(segment);
+      segment = {0., 0., 0.};
+    }
+    return obj_return_state;
   }
 };
 
@@ -1283,6 +1372,11 @@ class DecisionServiceState : public BaseState<audit>
           return &ctx.default_state;
       }
     }
+    else if (length == 3 && !strcmp(str, "pdf"))
+    {
+      ctx.array_pdf_state.return_state = this;
+      return &ctx.array_pdf_state;
+    }
     else if (length == 5 && !strcmp(str, "pdrop"))
     {
       ctx.float_state.output_float = &data->probabilityOfDrop;
@@ -1377,6 +1471,7 @@ struct Context
   IgnoreState<audit> ignore_state;
   ArrayState<audit> array_state;
   SlotsState<audit> slots_state;
+  ArrayToPdfState<audit> array_pdf_state;
 
   // DecisionServiceState
   DecisionServiceState<audit> decision_service_state;
