@@ -105,10 +105,10 @@ reduction::~reduction()
 
 void reduction::predict(example& ec)
 {
-  if (ec.pred.pdf.size() == 1 && first_only)
+  if (ec.pred_info.cats_pdf.size() == 1 && first_only)
   {
     // we already have a prediction passed, process here
-    float chosen_action = ec.pred.pdf[0].left;
+    float chosen_action = ec.pred_info.cats_pdf[0].left;
     const float continuous_range = max_value - min_value;
     const float unit_range = continuous_range / (num_actions - 1);
 

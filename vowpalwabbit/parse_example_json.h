@@ -167,10 +167,9 @@ class ArrayToPdfState : public BaseState<audit>
     return this;
   }
 
-  BaseState<audit>* StartArray(Context<audit>& ctx) override
+  BaseState<audit>* StartArray(Context<audit>&) override
   {
     done_w_pdf = false;
-    ctx.ex->pred.pdf.clear();
     segment = {0., 0., 0.};
     return this;
   }
@@ -214,7 +213,7 @@ class ArrayToPdfState : public BaseState<audit>
   {
     if (!done_w_pdf)
     {
-      ctx.ex->pred.pdf.push_back(segment);
+      ctx.ex->pred_info.cats_pdf.push_back(segment);
       segment = {0., 0., 0.};
     }
     return obj_return_state;

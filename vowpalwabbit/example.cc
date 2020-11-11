@@ -14,6 +14,7 @@ example::example()
   memset(&l, 0, sizeof(polylabel));
   memset(&pred, 0, sizeof(polyprediction));
   tag = v_init<char>();
+  pred_info.cats_pdf = v_init<VW::continuous_actions::pdf_segment>();
 }
 VW_WARNING_STATE_POP
 
@@ -22,6 +23,7 @@ VW_WARNING_DISABLE_DEPRECATED_USAGE
 example::~example()
 {
   tag.delete_v();
+  pred_info.cats_pdf.delete_v();
   if (passthrough)
   {
     delete passthrough;
@@ -36,6 +38,7 @@ example::example(example&& other) noexcept
     : example_predict(std::move(other))
     , l(other.l)
     , pred(other.pred)
+    , pred_info(other.pred_info)
     , weight(other.weight)
     , tag(std::move(other.tag))
     , example_counter(other.example_counter)
@@ -56,6 +59,10 @@ example::example(example&& other) noexcept
   other_tag._begin = nullptr;
   other_tag._end = nullptr;
   other_tag.end_array = nullptr;
+  auto& other_cats_pred = other.pred_info.cats_pdf;
+  other_cats_pred._begin = nullptr;
+  other_cats_pred._end = nullptr;
+  other_cats_pred.end_array = nullptr;
   other.example_counter = 0;
   other.num_features = 0;
   other.partial_prediction = 0.f;
@@ -76,6 +83,7 @@ example& example::operator=(example&& other) noexcept
   example_predict::operator=(std::move(other));
   l = other.l;
   pred = other.pred;
+  pred_info = std::move(other.pred_info);
   weight = other.weight;
   tag = std::move(other.tag);
   example_counter = other.example_counter;
@@ -89,10 +97,10 @@ example& example::operator=(example&& other) noexcept
   test_only = other.test_only;
   end_pass = other.end_pass;
   sorted = other.sorted;
-VW_WARNING_STATE_PUSH
-VW_WARNING_DISABLE_DEPRECATED_USAGE
+  VW_WARNING_STATE_PUSH
+  VW_WARNING_DISABLE_DEPRECATED_USAGE
   in_use = other.in_use;
-VW_WARNING_STATE_POP
+  VW_WARNING_STATE_POP
 
   other.weight = 1.f;
 
@@ -101,6 +109,11 @@ VW_WARNING_STATE_POP
   other_tag._begin = nullptr;
   other_tag._end = nullptr;
   other_tag.end_array = nullptr;
+
+  auto& other_cats_pred = other.pred_info.cats_pdf;
+  other_cats_pred._begin = nullptr;
+  other_cats_pred._end = nullptr;
+  other_cats_pred.end_array = nullptr;
 
   other.example_counter = 0;
   other.num_features = 0;
@@ -113,24 +126,18 @@ VW_WARNING_STATE_POP
   other.test_only = false;
   other.end_pass = false;
   other.sorted = false;
-VW_WARNING_STATE_PUSH
-VW_WARNING_DISABLE_DEPRECATED_USAGE
+  VW_WARNING_STATE_PUSH
+  VW_WARNING_DISABLE_DEPRECATED_USAGE
   other.in_use = false;
-VW_WARNING_STATE_POP
+  VW_WARNING_STATE_POP
   return *this;
 }
 
 void example::delete_unions(void (*delete_label)(void*), void (*delete_prediction)(void*))
 {
-  if (delete_label)
-  {
-    delete_label(&l);
-  }
+  if (delete_label) { delete_label(&l); }
 
-  if (delete_prediction)
-  {
-    delete_prediction(&pred);
-  }
+  if (delete_prediction) { delete_prediction(&pred); }
 }
 
 float collision_cleanup(features& fs)
@@ -173,6 +180,7 @@ void copy_example_label(example* dst, example* src, size_t, void (*copy_label)(v
 void copy_example_metadata(bool /* audit */, example* dst, example* src)
 {
   copy_array(dst->tag, src->tag);
+  copy_array(dst->pred_info.cats_pdf, src->pred_info.cats_pdf);
   dst->example_counter = src->example_counter;
 
   dst->ft_offset = src->ft_offset;
@@ -215,10 +223,8 @@ void copy_example_data(bool audit, example* dst, example* src, size_t label_size
 
 void move_feature_namespace(example* dst, example* src, namespace_index c)
 {
-  if (std::find(src->indices.begin(), src->indices.end(), c) == src->indices.end())
-    return;  // index not present in src
-  if (std::find(dst->indices.begin(), dst->indices.end(), c) == dst->indices.end())
-    dst->indices.push_back(c);
+  if (std::find(src->indices.begin(), src->indices.end(), c) == src->indices.end()) return;  // index not present in src
+  if (std::find(dst->indices.begin(), dst->indices.end(), c) == dst->indices.end()) dst->indices.push_back(c);
 
   auto& fdst = dst->feature_space[c];
   auto& fsrc = src->feature_space[c];
@@ -317,8 +323,7 @@ void free_flatten_example(flat_example* fec)
   if (fec)
   {
     fec->fs.~features();
-    if (fec->tag_len > 0)
-      free(fec->tag);
+    if (fec->tag_len > 0) free(fec->tag);
     free(fec);
   }
 }
@@ -383,7 +388,8 @@ std::string a_s_pred_to_string(const example& ec)
   std::stringstream strstream;
   strstream << "ec.pred.a_s[";
   for (uint32_t i = 0; i < ec.pred.a_s.size(); i++)
-  { strstream << "(" << i << " = " << ec.pred.a_s[i].action << ", " << ec.pred.a_s[i].score << ")"; } strstream << "]";
+  { strstream << "(" << i << " = " << ec.pred.a_s[i].action << ", " << ec.pred.a_s[i].score << ")"; }
+  strstream << "]";
   return strstream.str();
 }
 
@@ -412,8 +418,7 @@ namespace VW
 example* alloc_examples(size_t, size_t count = 1)
 {
   example* ec = calloc_or_throw<example>(count);
-  if (ec == nullptr)
-    return nullptr;
+  if (ec == nullptr) return nullptr;
   for (size_t i = 0; i < count; i++)
   {
     ec[i].ft_offset = 0;
@@ -439,10 +444,7 @@ void finish_example(vw& all, multi_ex& ec_seq)
 
 void return_multiple_example(vw& all, v_array<example*>& examples)
 {
-  for (auto ec : examples)
-  {
-    clean_example(all, *ec, true);
-  }
+  for (auto ec : examples) { clean_example(all, *ec, true); }
   examples.clear();
 }
 

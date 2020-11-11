@@ -48,13 +48,13 @@ int cb_explore_pdf::learn(example& ec, experimental::api_status*)
 
 int cb_explore_pdf::predict(example& ec, experimental::api_status*)
 {
-  if (first_only && ec.pred.pdf.size() == 0)
+  if (first_only && ec.pred_info.cats_pdf.size() == 0)
   {
     // uniform random
     ec.pred.pdf.push_back({min_value, max_value, static_cast<float>(1. / (max_value - min_value))});
     return error_code::success;
   }
-  else if (first_only && ec.pred.pdf.size() > 1)
+  else if (first_only && ec.pred_info.cats_pdf.size() > 1)
   {
     // pdf provided by user, continue
     return error_code::success;
