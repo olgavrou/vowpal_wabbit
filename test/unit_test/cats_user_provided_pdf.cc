@@ -27,6 +27,43 @@ BOOST_AUTO_TEST_CASE(cats_no_model_action_provided)
 }
 )";
   auto vw = VW::initialize(
+      "--dsjson --cats 4 --min_value=185 --max_value=23959 --bandwidth 1 --no_stdin --quiet --first_only", nullptr,
+      false, nullptr, nullptr);
+  auto examples = parse_dsjson(*vw, json_text);
+
+  BOOST_CHECK_EQUAL(examples.size(), 1);
+
+  BOOST_CHECK_CLOSE(examples[0]->pred.pdf[0].left, 185.121, FLOAT_TOL);
+  BOOST_CHECK_CLOSE(examples[0]->pred.pdf[0].right, 0., FLOAT_TOL);
+  BOOST_CHECK_CLOSE(examples[0]->pred.pdf[0].pdf_value, 0., FLOAT_TOL);
+
+  vw->predict(*examples[0]);
+
+  BOOST_CHECK_GE(examples[0]->pred.pdf_value.action, 185);
+  BOOST_CHECK_GT(examples[0]->pred.pdf_value.pdf_value, 0.);
+
+  VW::finish_example(*vw, examples);
+  VW::finish(*vw);
+}
+
+BOOST_AUTO_TEST_CASE(cats_pdf_no_model_action_provided)
+{
+  std::string json_text = R"(
+{
+  "Version": "1",
+  "EventId": "event_id",
+  "pdf": [
+    {"action": 185.121}
+  ],
+  "c": {
+    "f":1
+  },
+  "VWState": {
+    "m": "N/A"
+  }
+}
+)";
+  auto vw = VW::initialize(
       "--dsjson --cats_pdf 4 --min_value=185 --max_value=23959 --bandwidth 1 --no_stdin --quiet --first_only", nullptr,
       false, nullptr, nullptr);
   auto examples = parse_dsjson(*vw, json_text);
@@ -50,7 +87,7 @@ BOOST_AUTO_TEST_CASE(cats_no_model_action_provided)
   VW::finish(*vw);
 }
 
-BOOST_AUTO_TEST_CASE(cats_no_model_uniform_random)
+BOOST_AUTO_TEST_CASE(cats_pdf_no_model_uniform_random)
 {
   std::string json_text = R"(
 {
@@ -93,7 +130,7 @@ BOOST_AUTO_TEST_CASE(cats_no_model_uniform_random)
   VW::finish(*vw);
 }
 
-BOOST_AUTO_TEST_CASE(cats_no_model_pdf_provided)
+BOOST_AUTO_TEST_CASE(cats_pdf_no_model_pdf_provided)
 {
   std::string json_text = R"(
 {

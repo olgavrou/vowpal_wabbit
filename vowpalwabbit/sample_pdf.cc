@@ -58,22 +58,44 @@ int sample_pdf::learn(example& ec, experimental::api_status*)
 int sample_pdf::predict(example& ec, experimental::api_status*)
 {
   _pred_pdf.clear();
-
-  {  // scope to predict & restore prediction
-    if (!first_only)
-    { 
-      auto restore = VW::swap_guard(ec.pred.pdf, _pred_pdf);
-      _base->predict(ec);
-    }
-    else
-    {
-      _base->predict(ec);
-      std::swap(ec.pred.pdf, _pred_pdf);
-    }
+  
+  float action = 0;
+  float pdf_value = 0;
+  int ret_code;
+  {
+    {  // scope to predict & restore prediction
+      if (!first_only)
+      { 
+        {
+          auto restore = VW::swap_guard(ec.pred.pdf, _pred_pdf);
+          _base->predict(ec);
+        }
+        ret_code = exploration::sample_pdf(_p_random_state, std::begin(_pred_pdf), std::end(_pred_pdf),
+          action, pdf_value);
+      }
+      else
+      {
+        if (ec.pred.pdf.size() == 0)
+        {
+          {
+            auto restore = VW::swap_guard(ec.pred.pdf, _pred_pdf);
+            _base->predict(ec);
+          }
+          ret_code = exploration::sample_pdf(_p_random_state, std::begin(_pred_pdf), std::end(_pred_pdf),
+            action, pdf_value);
+        }
+        else if (ec.pred.pdf.size() >= 1)
+        {
+          _base->predict(ec);
+          ret_code = exploration::sample_pdf(_p_random_state, std::begin(ec.pred.pdf), std::end(ec.pred.pdf),
+            action, pdf_value);
+          ec.pred.pdf.clear();
+        }
+      }
+    }  
   }
-
-  const int ret_code = exploration::sample_pdf(_p_random_state, std::begin(_pred_pdf), std::end(_pred_pdf),
-      ec.pred.pdf_value.action, ec.pred.pdf_value.pdf_value);
+  ec.pred.pdf_value.action = action;
+  ec.pred.pdf_value.pdf_value = pdf_value;
 
   if (ret_code != S_EXPLORATION_OK) return error_code::sample_pdf_failed;
 
@@ -131,7 +153,7 @@ LEARNER::base_learner* sample_pdf_setup(options_i& options, vw& all)
   LEARNER::learner<sample_pdf, example>& l = init_learner(p_reduction, as_singleline(p_base), predict_or_learn<true>,
       predict_or_learn<false>, 1, prediction_type_t::action_pdf_value);
 
-  all.delete_prediction = nullptr;
+  all.delete_prediction = VW::continuous_actions::delete_probability_density_function;
 
   return make_base(l);
 }

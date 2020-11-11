@@ -105,7 +105,7 @@ reduction::~reduction()
 
 void reduction::predict(example& ec)
 {
-  if (ec.pred.pdf.size() == 1)
+  if (ec.pred.pdf.size() == 1 && first_only)
   {
     // we already have a prediction passed, process here
     float chosen_action = ec.pred.pdf[0].left;
@@ -260,7 +260,8 @@ base_learner* setup(options_i& options, vw& all)
       .add(make_option("bandwidth", data->bandwidth)
                .default_value(1)
                .keep()
-               .help("Bandwidth (radius) of randomization around discrete actions in number of actions."));
+               .help("Bandwidth (radius) of randomization around discrete actions in number of actions."))
+      .add(make_option("first_only", data->first_only).keep().help("Only explore the user provided first action or user provided pdf"));
 
   if (!options.add_parse_and_check_necessary(new_options)) return nullptr;
 

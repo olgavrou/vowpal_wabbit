@@ -194,6 +194,7 @@ LEARNER::base_learner* setup(config::options_i& options, vw& all)
 
   l.set_finish_example(finish_example);
   all.p->lp = cb_continuous::the_label_parser;
+  all.delete_prediction = VW::continuous_actions::delete_probability_density_function;
 
   return make_base(l);
 }
